@@ -1,0 +1,2 @@
+[workspace]
+members = ["aidfs", "aidfs_utils"]
