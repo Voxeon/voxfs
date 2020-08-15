@@ -1,17 +1,17 @@
 use core::fmt::Debug;
 
-pub trait AidFSErrorConvertible: Debug {
+pub trait VoxFSErrorConvertible: Debug {
     /// If this is an internal error this will succeed otherwise by default it will return None.
-    fn into_aidfs_error(self) -> AidFSError<Self>
+    fn into_voxfs_error(self) -> VoxFSError<Self>
     where
         Self: Sized,
     {
-        return AidFSError::DiskError(self);
+        return VoxFSError::DiskError(self);
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AidFSError<E> {
+pub enum VoxFSError<E> {
     InvalidBlockSize,
     NoFreeInode,
     NoFreeTag,

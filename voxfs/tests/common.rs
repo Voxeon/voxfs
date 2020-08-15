@@ -1,11 +1,11 @@
-extern crate aidfs;
-use aidfs::{AidFSError, AidFSErrorConvertible, Disk, DiskHandler, OSManager};
+extern crate voxfs;
+use voxfs::{VoxFSErrorConvertible, DiskHandler, OSManager};
 use chrono::{DateTime, Utc};
 
 #[derive(Debug)]
 pub struct Error {}
 
-impl AidFSErrorConvertible for Error {}
+impl VoxFSErrorConvertible for Error {}
 
 pub struct Handler {
     pub disk: Vec<u8>,

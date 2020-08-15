@@ -1,5 +1,5 @@
 [package]
-name = "aidfs_utils"
+name = "voxfs_utils"
 version = "0.1.0"
 authors = ["aidos9 <20310468+aidos9@users.noreply.github.com>"]
 edition = "2018"
@@ -9,5 +9,5 @@ edition = "2018"
 [dependencies]
 
 [[bin]]
-name = "mkaidfs"
-path = "src/mkaidfs/main.rs"
+name = "mkvoxfs"
+path = "src/mkvoxfs/main.rs"

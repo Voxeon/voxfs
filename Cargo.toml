@@ -1,2 +1,2 @@
 [workspace]
-members = ["aidfs", "aidfs_utils"]
+members = ["voxfs", "voxfs_utils"]

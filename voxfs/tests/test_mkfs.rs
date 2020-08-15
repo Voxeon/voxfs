@@ -1,5 +1,5 @@
-extern crate aidfs;
-use aidfs::{ByteSerializable, Disk, DiskHandler, OSManager, TagBlock, TagFlags};
+extern crate voxfs;
+use voxfs::{ByteSerializable, Disk, DiskHandler, OSManager, TagBlock, TagFlags};
 
 mod common;
 use common::*;

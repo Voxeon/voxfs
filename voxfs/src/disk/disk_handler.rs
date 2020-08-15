@@ -1,9 +1,9 @@
-use crate::AidFSErrorConvertible;
+use crate::VoxFSErrorConvertible;
 use alloc::vec::Vec;
 
 /// Implementors can define an error struct if they wish but they must implement methods to read and write from a physical disk or image file.
 /// Locations and addresses should all be in bytes
-pub trait DiskHandler<E: AidFSErrorConvertible> {
+pub trait DiskHandler<E: VoxFSErrorConvertible> {
     /// Write a vector of bytes to a location
     fn write_bytes(&mut self, bytes: &Vec<u8>, location: u64) -> Result<(), E>;
 
