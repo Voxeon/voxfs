@@ -17,5 +17,7 @@ pub enum VoxFSError<E> {
     NoFreeTag,
     CorruptedTag,
     CorruptedINode,
+    NotEnoughFreeDataBlocks,
+    BlockAlreadyAllocated,
     DiskError(E),
 }

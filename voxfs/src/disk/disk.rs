@@ -2,7 +2,7 @@ use super::disk_blocks::SuperBlock;
 use super::DiskHandler;
 use crate::bitmap::BitMap;
 use crate::disk::disk_blocks::{INode, INodeFlags, TagBlock, TagFlags};
-use crate::{VoxFSError, VoxFSErrorConvertible, ByteSerializable, OSManager};
+use crate::{ByteSerializable, OSManager, VoxFSError, VoxFSErrorConvertible};
 use alloc::{vec, vec::Vec};
 
 const DEFAULT_BLOCK_SIZE: u64 = 4_096; // In bytes. 4KiB.
@@ -183,8 +183,8 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
 
                 nodes.push(
                     match INode::from_bytes(&unwrap_error_aidfs_convertible!(self
-                    .handler
-                    .read_bytes(location, INode::size())))
+                        .handler
+                        .read_bytes(location, INode::size())))
                     {
                         Some(node) => node,
                         None => return Err(VoxFSError::CorruptedINode),
@@ -205,8 +205,8 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
 
                 tags.push(
                     match TagBlock::from_bytes(&unwrap_error_aidfs_convertible!(self
-                    .handler
-                    .read_bytes(location, TagBlock::size())))
+                        .handler
+                        .read_bytes(location, TagBlock::size())))
                     {
                         Some(tag) => tag,
                         None => return Err(VoxFSError::CorruptedTag),
@@ -215,16 +215,54 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
             }
         }
 
-
         return Ok(tags);
     }
 
-    pub fn create_new_file_first_free(&mut self, file_inode: INode, contents: Vec<u8>) -> Result<(), VoxFSError<E>> {
-        // let inode_index = match self.inode_bitmap.find_next_index() {
-        //     Some(index) => index,
-        //     None => return Err(AidFSError::NoFreeInode),
-        // };
-        //
+    pub fn create_new_file_first_free(
+        &mut self,
+        file_inode: INode,
+        contents: Vec<u8>,
+    ) -> Result<(), VoxFSError<E>> {
+        let inode_index = match self.inode_bitmap.find_next_0_index() {
+            Some(index) => index,
+            None => return Err(VoxFSError::NoFreeInode),
+        };
+
+        let blocks = match self.find_blocks(contents.len() as u64) {
+            Some(extents) => extents,
+            None => return Err(VoxFSError::NotEnoughFreeDataBlocks),
+        };
+
+        let mut contents_offset = 0;
+
+        for (start, end) in blocks {
+            for i in start..=end {
+                if self.block_bitmap.bit_at(i as usize).unwrap() {
+                    return Err(VoxFSError::BlockAlreadyAllocated);
+                } else {
+                    self.block_bitmap.set_bit(i as usize, true);
+
+                    if contents_offset + self.block_size > contents.len() as u64 {
+                        unwrap_error_aidfs_convertible!(self.handler.write_bytes(
+                            &contents[contents_offset as usize..].to_vec(),
+                            contents_offset
+                        ));
+
+                    } else {
+                        unwrap_error_aidfs_convertible!(self.handler.write_bytes(
+                            &contents[contents_offset as usize
+                                ..(contents_offset + self.block_size) as usize]
+                                .to_vec(),
+                            contents_offset
+                        ));
+                        
+                    }
+
+                    contents_offset += self.block_size;
+                }
+            }
+        }
+
         // unwrap_error_aidfs_convertible!(self.handler.write_bytes(
         //     &tag.to_bytes().to_vec(),
         //     self.super_block.tag_start_address + (index as u64) * TagBlock::size()
@@ -239,7 +277,8 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         return Ok(());
     }
 
-    /// Locates extents and returns a vector of tuples where .0 is the start address and .1 is the end address
+    /// Locates extents and returns a vector of tuples where .0 is the start address and .1 is the end address.
+    /// min_size: The minimum size needed in BYTES
     fn find_blocks(&self, min_size: u64) -> Option<Vec<(u64, u64)>> {
         let num_blocks_required = {
             if min_size % self.block_size != 0 {
@@ -250,41 +289,72 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         };
 
         // Check if we have enough blocks.
-        if (self.block_bitmap.count_ones() as u64) < num_blocks_required {
+        if (self
+            .block_bitmap
+            .count_zeros_up_to(self.super_block.block_count() as usize))
+        .unwrap()
+            < num_blocks_required as usize
+        {
             return None;
         }
 
         let mut res = Vec::new();
         let mut blocks_found = 0;
 
-        let mut start_index = self.block_bitmap.find_next_0_index().unwrap() as u64;
-        let mut end_index = start_index;
+        let mut first_index = self.block_bitmap.find_next_0_index().unwrap() as u64;
 
         // Find the largest available extent first them work down to individual blocks.
         while blocks_found < num_blocks_required {
             // Find largest available extent up to the size required
 
+            let mut start_index = first_index;
+            let mut end_index = start_index;
+
             let mut largest_start_index = start_index;
             let mut largest_end_index = end_index;
 
-            let mut i = start_index;
+            let mut i = start_index + 1;
 
-            // Find the largest available extent
+            // Find the largest available extent up to the required size
             while i < self.super_block.block_count() {
+                if (end_index - start_index + 1) >= (num_blocks_required - blocks_found) {
+                    // We add one here to account for the inclusive end of the extent
+                    largest_start_index = start_index;
+                    largest_end_index = end_index;
+                    break;
+                }
+
                 if !self.block_bitmap.bit_at(i as usize).unwrap() {
                     end_index += 1;
                 } else {
-                    // If this extent is of the required length already then just break and return it.
-                    if (end_index - start_index) == (num_blocks_required - blocks_found) {
-                        res.push((start_index, end_index));
-                        break;
-                    } else if (end_index - start_index) > (largest_end_index - largest_start_index)  {
+                    if (end_index - start_index) > (largest_end_index - largest_start_index) {
                         largest_start_index = start_index;
                         largest_end_index = end_index;
                     }
+
+                    start_index = i + 1;
+                    end_index = i + 1;
                 }
 
                 i += 1;
+            }
+
+            blocks_found += largest_end_index - largest_start_index + 1;
+            res.push((largest_start_index, largest_end_index));
+
+            if largest_start_index == first_index {
+                let mut new_first_index = None;
+
+                for i in largest_end_index..self.super_block.block_count() {
+                    if !self.block_bitmap.bit_at(i as usize).unwrap() {
+                        new_first_index = Some(i);
+                    }
+                }
+
+                match new_first_index {
+                    Some(i) => first_index = i,
+                    None => return None, // Should never happen but just in case.
+                }
             }
         }
 

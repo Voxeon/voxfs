@@ -1,6 +1,6 @@
 extern crate voxfs;
-use voxfs::{VoxFSErrorConvertible, DiskHandler, OSManager};
 use chrono::{DateTime, Utc};
+use voxfs::{DiskHandler, OSManager, VoxFSErrorConvertible};
 
 #[derive(Debug)]
 pub struct Error {}

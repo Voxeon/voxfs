@@ -159,6 +159,30 @@ impl BitMap {
 
         return sum;
     }
+
+    pub fn count_zeros_up_to(&self, index: usize) -> Option<usize> {
+        if index >= self.len() {
+            return None;
+        }
+
+        let chunks = index / 64;
+        let chunk_index = index % 64;
+        let mut sum: usize = 0;
+
+        for n in 0..chunks {
+            sum += self.vc[n].count_zeros() as usize;
+        }
+
+        if chunk_index != 0 {
+            for i in 0..chunk_index {
+                if !self.bit_at(chunks + i).unwrap() {
+                    sum += 1;
+                }
+            }
+        }
+
+        return Some(sum);
+    }
 }
 
 impl core::iter::IntoIterator for BitMap {
