@@ -5,7 +5,7 @@ mod common;
 use common::*;
 
 #[test]
-fn test_create_new_file() {
+fn test_list_all_inodes() {
     let mut handler = Handler::new(4096 * 30); // Disk size of 120 KiB
     let mut manager = Manager::new();
 
@@ -26,20 +26,37 @@ fn test_create_new_file() {
         .as_bytes()
         .to_vec();
 
-    disk.create_new_file_first_free(
+    let mut comp_nodes = Vec::new();
+
+
+    comp_nodes.push(disk.create_new_file_first_free(
         "test_file",
         INodeFlags::new(true, true, true, false),
         file_contents.clone(),
-    ).unwrap();
+    ).unwrap());
 
     let mut ultra_large_file = vec![0u8; 4096 * 6]; // We want to take up more than 5 blocks so an indirect inode is required.
     ultra_large_file[0] = 0xff;
 
-    disk.create_new_file_first_free(
+    comp_nodes.push(disk.create_new_file_first_free(
         "test_file_2",
         INodeFlags::new(true, true, true, false),
         ultra_large_file,
-    ).unwrap();
+    ).unwrap());
 
-    assert_eq!(handler.dump_disk()[32768..32768+file_contents.len()].to_vec(), file_contents);
+   
+    let file_contents_2 = "Different file contents for this file!"
+    .as_bytes()
+    .to_vec();
+
+    comp_nodes.push(disk.create_new_file_first_free(
+        "test_file",
+        INodeFlags::new(true, true, true, false),
+        file_contents_2.clone(),
+    ).unwrap());
+
+
+    let nodes = disk.retrieve_all_inodes().unwrap();
+
+    assert_eq!(nodes, comp_nodes);
 }

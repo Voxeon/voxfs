@@ -1,6 +1,5 @@
 use crate::utils::rightmost_unset_bit;
 use alloc::{vec, vec::Vec};
-use core::ops::Index;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct BitMap {
@@ -49,7 +48,7 @@ impl BitMap {
         for b in 0..bytes.len() / 8 {
             let i = b * 8;
 
-            let mut n = (bytes[i] as u64);
+            let mut n = bytes[i] as u64;
 
             for p in 1..8 {
                 n |= (bytes[i + p] as u64) << (p * 8);
@@ -140,6 +139,7 @@ impl BitMap {
         return res;
     }
 
+    #[allow(dead_code)]
     pub fn count_ones(&self) -> usize {
         let mut sum: usize = 0;
 
@@ -150,6 +150,7 @@ impl BitMap {
         return sum;
     }
 
+    #[allow(dead_code)]
     pub fn count_zeros(&self) -> usize {
         let mut sum: usize = 0;
 
@@ -376,7 +377,7 @@ mod tests {
 
     #[test]
     fn test_find_next_index() {
-        let mut map = BitMap::new(1024);
+        let map = BitMap::new(1024);
 
         assert_eq!(map.find_next_0_index().unwrap(), 0);
     }

@@ -1,12 +1,10 @@
 use super::{INode, TagBlock};
 use crate::{ByteSerializable, Checksum};
-use alloc::vec::Vec;
 use byteorder::{ByteOrder, LittleEndian};
 
 const CURRENT_VERSION: u8 = 0x00;
 const MAGIC: u32 = 0xa1df5000;
 const BYTES_PER_INODE: u64 = 2048;
-const INODES_PER_TAG: u64 = 2;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct SuperBlock {
@@ -91,6 +89,9 @@ impl SuperBlock {
         return self.block_count;
     }
 
+    // Dead code since nothing should require this but for consistency it is provided.
+    #[allow(dead_code)]
+    /// The size of the superblock.
     pub fn size() -> u64 {
         return 64; // 64 bytes
     }
@@ -124,7 +125,7 @@ impl ByteSerializable for SuperBlock {
         offset += 8;
 
         bytes[offset] = self.checksum;
-        offset += 1;
+        //offset += 1; // Increment if in further revisions data is added beyond this point
 
         // bytes 62, 63, 64 are reserved
 
@@ -176,7 +177,7 @@ impl ByteSerializable for SuperBlock {
         offset += 8;
 
         checksum = bytes[offset];
-        offset += 1;
+        //offset += 1;  // Increment if in further revisions data is added beyond this point
 
         let res = Self {
             magic,

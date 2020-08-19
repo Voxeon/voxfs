@@ -1,6 +1,5 @@
 use crate::{ByteSerializable, Checksum};
 use byteorder::{ByteOrder, LittleEndian};
-use chrono::format::Item::Literal;
 
 #[derive(Clone, Copy)]
 /// Length of 256 bytes

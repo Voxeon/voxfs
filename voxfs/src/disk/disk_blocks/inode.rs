@@ -2,7 +2,10 @@ use crate::ByteSerializable;
 use crate::Checksum;
 use alloc::{vec, vec::Vec};
 use byteorder::{ByteOrder, LittleEndian};
-use chrono::{DateTime, TimeZone, Timelike, Utc};
+use chrono::{DateTime, Utc};
+use alloc::string::String;
+
+const MAX_INODE_NAME_LENGTH: usize = 125;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[repr(packed)]
@@ -21,8 +24,8 @@ pub struct INodeFlags {
 pub struct INode {
     /// Index, a unique number representing this inode's location in the inode map
     index: u64,
-    /// name, 126 bytes constant filled with null bytes otherwise
-    name: [char; 126],
+    /// name, 125 bytes constant filled with null bytes otherwise
+    name: [char; MAX_INODE_NAME_LENGTH],
     /// size in bytes
     size: u64,
     /// flags (v,r,w,e), bits 5 - 8 are reserved
@@ -37,29 +40,34 @@ pub struct INode {
     checksum: u8,
     /// indirect block points to a block that only contains a list of pointers to other blocks
     indirect_block: u64,
+    /// The number of extents stored in THIS inode exlcuding indirect inodes.
+    num_extents: u8,
     /// pointers to blocks, if a space is unused it will be represented simply by 0
     blocks: [Extent; 5],
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Extent {
-    start: u64,
-    end: u64,
+    pub start: u64,
+    pub end: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-/// This takes up 512 bytes
+/// This takes a whole block.
 pub struct IndirectINode {
-    /// The location of the inode
-    root: u64,
     /// Checksum
     checksum: u8,
-    /// Reserved bytes
-    reserved: [u8; 15],
-    /// 30 Extents
-    pointers: [Extent; 30],
+    /// Reserved byte
+    reserved: u8,
     /// Pointer to another IndirectINode
     next: u64,
+    /// The number of extents stored in THIS inode exlcuding indirect inodes.
+    num_extents: u16,
+    /// As many extents as  we can represent, a maximum of 65,355 entries.
+    pointers: Vec<Extent>,
+
+    /// This is NOT serialized or placed on disk, it is for the methods to know the limit for the number of extents.
+    pub maximum_extents: u64
 }
 
 impl INodeFlags {
@@ -114,12 +122,13 @@ impl INode {
         modified_time: DateTime<Utc>,
         creation_time: DateTime<Utc>,
         indirect_pointer: u64,
+        num_extents: u8,
         blocks: [Extent; 5],
     ) -> Self {
-        let mut name: [char; 126] = ['\0'; 126];
+        let mut name: [char; MAX_INODE_NAME_LENGTH] = ['\0'; MAX_INODE_NAME_LENGTH];
 
         for (i, c) in str_name.chars().enumerate() {
-            if i >= 126 {
+            if i >= MAX_INODE_NAME_LENGTH {
                 break;
             }
 
@@ -136,6 +145,7 @@ impl INode {
             creation_time: creation_time.timestamp_nanos() as u64,
             checksum: 0,
             indirect_block: indirect_pointer,
+            num_extents,
             blocks,
         };
 
@@ -146,6 +156,18 @@ impl INode {
 
     pub fn size() -> u64 {
         return 256;
+    }
+
+    pub fn name(&self) -> String {
+        let mut first_null_byte = self.name.len();
+        for (i, ch) in self.name.iter().enumerate() {
+            if *ch == '\0' {
+                first_null_byte = i;
+                break;
+            }
+        }
+
+        return self.name[..first_null_byte].iter().collect();
     }
 }
 
@@ -170,7 +192,7 @@ impl ByteSerializable for INode {
             bytes[offset + i] = *c as u8;
         }
 
-        offset += 126;
+        offset += MAX_INODE_NAME_LENGTH;
 
         LittleEndian::write_u64(&mut bytes[offset..], self.size);
         offset += 8;
@@ -188,6 +210,9 @@ impl ByteSerializable for INode {
         offset += 1;
         LittleEndian::write_u64(&mut bytes[offset..], self.indirect_block);
         offset += 8;
+
+        bytes[offset] = self.num_extents;
+        offset += 1;
 
         for block in self.blocks.iter() {
             LittleEndian::write_u64(&mut bytes[offset..], block.start);
@@ -210,7 +235,7 @@ impl ByteSerializable for INode {
         let mut offset = 0;
 
         let index: u64;
-        let mut name = ['\0'; 126];
+        let mut name = ['\0'; MAX_INODE_NAME_LENGTH];
         let size: u64;
         let flags: INodeFlags;
         let access_time: u64;
@@ -218,17 +243,19 @@ impl ByteSerializable for INode {
         let creation_time: u64;
         let checksum: u8;
         let indirect_block: u64;
+        let num_extents: u8;
         let mut blocks = [Extent::zeroed(); 5];
 
         index = LittleEndian::read_u64(&bytes[offset..]);
         offset += 8;
 
         let mut i = 0;
-        for ch in &bytes[offset..offset + 126] {
+        for ch in &bytes[offset..offset + MAX_INODE_NAME_LENGTH] {
             name[i] = *ch as char;
             i += 1;
         }
-        offset += 126;
+
+        offset += MAX_INODE_NAME_LENGTH;
 
         size = LittleEndian::read_u64(&bytes[offset..]);
         offset += 8;
@@ -251,6 +278,9 @@ impl ByteSerializable for INode {
         indirect_block = LittleEndian::read_u64(&bytes[offset..]);
         offset += 8;
 
+        num_extents = bytes[offset];
+        offset += 1;
+
         let mut i = 0;
         for _ in (offset..256).step_by(16) {
             blocks[i].start = LittleEndian::read_u64(&bytes[offset..]);
@@ -271,6 +301,7 @@ impl ByteSerializable for INode {
             creation_time,
             checksum,
             indirect_block,
+            num_extents,
             blocks,
         };
 
@@ -290,7 +321,7 @@ impl core::cmp::PartialEq for INode {
     fn eq(&self, other: &Self) -> bool {
         let mut name_identical = true;
 
-        for i in 0..126usize {
+        for i in 0..MAX_INODE_NAME_LENGTH {
             if other.name[i] != self.name[i] {
                 name_identical = false;
 
@@ -307,6 +338,7 @@ impl core::cmp::PartialEq for INode {
             && self.creation_time == other.creation_time
             && self.checksum == other.checksum
             && self.indirect_block == other.indirect_block
+            && self.num_extents == other.num_extents
             && self.blocks == other.blocks;
     }
 }
@@ -325,6 +357,7 @@ impl core::fmt::Debug for INode {
             .field("creation_time", &self.creation_time)
             .field("checksum", &self.checksum)
             .field("indirect_block", &self.indirect_block)
+            .field("num_extents", &self.num_extents)
             .field("blocks", &self.blocks)
             .finish();
     }
@@ -335,91 +368,149 @@ impl Extent {
     pub fn zeroed() -> Self {
         return Self { start: 0, end: 0 };
     }
+
+    #[inline]
+    pub fn size() -> u64 {
+        return 16; // start: 8 bytes, end: 8 bytes
+    }
 }
 
 impl IndirectINode {
-    pub fn new(root: u64, pointers: [Extent; 30], next: u64) -> Self {
+    /// The size in bytes of the fixed length elements within an indirect INode.
+    const NON_EXPANDABLE_SIZE: u64 = 1 + 1 + 2 + 8;
+
+    /// Constructs a new `IndirectINode`, block_size should be greater than 256 at a minimum.
+    pub fn new(pointers: Vec<Extent>, next: u64, block_size: u64) -> Self {
+        assert!(block_size > 256);
+        assert!(pointers.len() < u16::MAX as usize);
+
         let mut res = Self {
-            root,
             checksum: 0,
-            reserved: [0u8; 15],
+            reserved: 0,
+            num_extents: pointers.len() as u16,
             pointers,
             next,
+            maximum_extents: Self::max_extents_for_blocksize(block_size),
         };
 
         res.set_checksum();
 
         return res;
     }
+
+    pub fn set_next(&mut self, next: u64) {
+        self.next = next;
+    }
+
+    pub fn next_is_set(&self) -> bool {
+        return self.next != 0;
+    }
+
+    pub fn append_extent(&mut self, extent: Extent) -> bool {
+        if self.num_extents as u64 >= self.maximum_extents {
+            return false;
+        }
+
+        self.pointers.push(extent);
+        self.num_extents += 1;
+
+        return true;
+    }
+
+    pub fn remove_extent(&mut self, index: u16) -> bool {
+        if index >= self.num_extents {
+            return false;
+        }
+
+        self.pointers.remove(index as usize);
+        self.num_extents -= 1;
+
+        return true;
+    }
+
+    pub fn extents(&self) -> Vec<Extent> {
+        return self.pointers.clone();
+    }
+
+    pub fn capacity(&self) -> u64 {
+        return self.maximum_extents;
+    }
+
+    #[inline]
+    pub fn max_extents_for_blocksize(blocksize: u64) -> u64 {
+        return (blocksize - Self::NON_EXPANDABLE_SIZE) / Extent::size();
+    }
 }
 
 impl ByteSerializable for IndirectINode {
-    type BytesArrayType = [u8; (2 + 31 * 2) * 8];
+    type BytesArrayType = Vec<u8>;
 
     fn to_bytes(&self) -> Self::BytesArrayType {
-        let mut bytes = [0u8; (2 + 31 * 2) * 8];
-        let mut offset = 0;
+        let mut bytes = Vec::new();
+        let mut working = [0u8; 8];
 
-        LittleEndian::write_u64(&mut bytes[offset..], self.root);
-        offset += 8;
+        bytes.push(self.checksum);
+        bytes.push(self.reserved);
+        
+        LittleEndian::write_u64(&mut working, self.next);
+        bytes.extend_from_slice(&working);
 
-        bytes[offset] = self.checksum;
-        offset += 1;
-
-        offset += 15; // Reserved bytes
+        LittleEndian::write_u16(&mut working, self.num_extents);
+        bytes.extend_from_slice(&working[0..2]);
 
         for extent in &self.pointers {
-            LittleEndian::write_u64(&mut bytes[offset..], extent.start);
-            offset += 8;
-            LittleEndian::write_u64(&mut bytes[offset..], extent.end);
-            offset += 8;
-        }
+            LittleEndian::write_u64(&mut working, extent.start);
+            bytes.extend_from_slice(&working);
 
-        LittleEndian::write_u64(&mut bytes[offset..], self.next);
-        offset += 8;
+            LittleEndian::write_u64(&mut working, extent.end);
+            bytes.extend_from_slice(&working);
+        }
 
         return bytes;
     }
 
     // Performs a checksum check
     fn from_bytes(bytes: &[u8]) -> Option<Self> {
-        if bytes.len() < 512 {
+        if bytes.len() < Self::NON_EXPANDABLE_SIZE as usize {
             return None;
         }
 
-        let root;
         let checksum;
-        let mut extents = [Extent::zeroed(); 30];
+        let reserved;
         let next;
+        let num_extents;
+        let mut extents = Vec::new();
 
         let mut offset = 0;
-
-        root = LittleEndian::read_u64(&bytes[offset..]);
-        offset += 8;
 
         checksum = bytes[offset];
         offset += 1;
 
-        offset += 15; // Reserved bytes
+        reserved = bytes[offset];
+        offset += 1;
 
-        for i in 0..30 {
+        next = LittleEndian::read_u64(&bytes[offset..]);
+        offset += 8;
+
+        num_extents = LittleEndian::read_u16(&bytes[offset..]);
+        offset += 2;
+
+        for _ in 0..num_extents {
             let start = LittleEndian::read_u64(&bytes[offset..]);
             offset += 8;
             let end = LittleEndian::read_u64(&bytes[offset..]);
             offset += 8;
 
-            extents[i] = Extent { start, end };
+            extents.push(Extent { start, end });
         }
 
-        next = LittleEndian::read_u64(&bytes[offset..]);
-        offset += 8;
-
         let res = Self {
-            root,
             checksum,
-            reserved: [0u8; 15],
+            reserved,
+            num_extents,
             pointers: extents,
             next,
+            maximum_extents: 0,
         };
 
         if res.perform_checksum() {
@@ -484,6 +575,7 @@ mod tests {
                     DateTime::parse_from_rfc2822("Fri, 20 Feb 2015 23:16:09 +0000").unwrap(),
                 ),
                 0,
+                1,
                 blocks,
             );
 
@@ -511,6 +603,7 @@ mod tests {
                     DateTime::parse_from_rfc2822("Wed, 18 Feb 2015 23:16:11 +0000").unwrap(),
                 ),
                 0,
+                1,
                 blocks,
             );
 
@@ -525,44 +618,46 @@ mod tests {
             comp[10] = b'm';
             comp[11] = b'e';
 
-            comp[134] = 246; // Size
-            comp[142] = 0b1100_0000; // Flags
+            comp[133] = 246; // Size
+            comp[141] = 0b1100_0000; // Flags
 
             // Access Time: 0x13c4228c8058fa00
-            comp[143] = 0x00;
-            comp[144] = 0xfa;
-            comp[145] = 0x58;
-            comp[146] = 0x80;
-            comp[147] = 0x8c;
-            comp[148] = 0x22;
-            comp[149] = 0xc4;
-            comp[150] = 0x13;
+            comp[142] = 0x00;
+            comp[143] = 0xfa;
+            comp[144] = 0x58;
+            comp[145] = 0x80;
+            comp[146] = 0x8c;
+            comp[147] = 0x22;
+            comp[148] = 0xc4;
+            comp[149] = 0x13;
 
             // Modified Time: 0x13c4228cbbf3c400
-            comp[151] = 0x00;
-            comp[152] = 0xc4;
-            comp[153] = 0xf3;
-            comp[154] = 0xbb;
-            comp[155] = 0x8c;
-            comp[156] = 0x22;
-            comp[157] = 0xc4;
-            comp[158] = 0x13;
+            comp[150] = 0x00;
+            comp[151] = 0xc4;
+            comp[152] = 0xf3;
+            comp[153] = 0xbb;
+            comp[154] = 0x8c;
+            comp[155] = 0x22;
+            comp[156] = 0xc4;
+            comp[157] = 0x13;
 
             // Creation Time: 0x13c4228cf78e8e00
-            comp[159] = 0x00;
+            comp[158] = 0x00;
+            comp[159] = 0x8e;
             comp[160] = 0x8e;
-            comp[161] = 0x8e;
-            comp[162] = 0xf7;
-            comp[163] = 0x8c;
-            comp[164] = 0x22;
-            comp[165] = 0xc4;
-            comp[166] = 0x13;
+            comp[161] = 0xf7;
+            comp[162] = 0x8c;
+            comp[163] = 0x22;
+            comp[164] = 0xc4;
+            comp[165] = 0x13;
 
             // Checksum
-            comp[167] = 36;
+            comp[166] = 35;
 
             // indirect pointer
-            comp[168] = 0;
+            comp[167] = 0;
+
+            comp[175] = 0x1; // Size
 
             // blocks
             comp[176] = 0x2;
@@ -586,44 +681,46 @@ mod tests {
                 comp[10] = b'm';
                 comp[11] = b'e';
 
-                comp[134] = 246; // Size
-                comp[142] = 0b1100_0000; // Flags
+                comp[133] = 246; // Size
+                comp[141] = 0b1100_0000; // Flags
 
                 // Access Time: 0x13c4228c8058fa00
-                comp[143] = 0x00;
-                comp[144] = 0xfa;
-                comp[145] = 0x58;
-                comp[146] = 0x80;
-                comp[147] = 0x8c;
-                comp[148] = 0x22;
-                comp[149] = 0xc4;
-                comp[150] = 0x13;
+                comp[142] = 0x00;
+                comp[143] = 0xfa;
+                comp[144] = 0x58;
+                comp[145] = 0x80;
+                comp[146] = 0x8c;
+                comp[147] = 0x22;
+                comp[148] = 0xc4;
+                comp[149] = 0x13;
 
                 // Modified Time: 0x13c4228cbbf3c400
-                comp[151] = 0x00;
-                comp[152] = 0xc4;
-                comp[153] = 0xf3;
-                comp[154] = 0xbb;
-                comp[155] = 0x8c;
-                comp[156] = 0x22;
-                comp[157] = 0xc4;
-                comp[158] = 0x13;
+                comp[150] = 0x00;
+                comp[151] = 0xc4;
+                comp[152] = 0xf3;
+                comp[153] = 0xbb;
+                comp[154] = 0x8c;
+                comp[155] = 0x22;
+                comp[156] = 0xc4;
+                comp[157] = 0x13;
 
                 // Creation Time: 0x13c4228cf78e8e00
-                comp[159] = 0x00;
+                comp[158] = 0x00;
+                comp[159] = 0x8e;
                 comp[160] = 0x8e;
-                comp[161] = 0x8e;
-                comp[162] = 0xf7;
-                comp[163] = 0x8c;
-                comp[164] = 0x22;
-                comp[165] = 0xc4;
-                comp[166] = 0x13;
+                comp[161] = 0xf7;
+                comp[162] = 0x8c;
+                comp[163] = 0x22;
+                comp[164] = 0xc4;
+                comp[165] = 0x13;
 
                 // Checksum
-                comp[167] = 36;
+                comp[166] = 35;
 
                 // indirect pointer
-                comp[168] = 0;
+                comp[167] = 0;
+
+                comp[175] = 0x1; // Size
 
                 // blocks
                 comp[176] = 0x2;
@@ -654,6 +751,7 @@ mod tests {
                     DateTime::parse_from_rfc2822("Wed, 18 Feb 2015 23:16:11 +0000").unwrap(),
                 ),
                 0,
+                1,
                 blocks,
             );
 
@@ -683,6 +781,7 @@ mod tests {
                     DateTime::parse_from_rfc2822("Fri, 20 Feb 2015 23:16:11 +0000").unwrap(),
                 ),
                 0,
+                1,
                 blocks,
             );
 
@@ -698,7 +797,7 @@ mod tests {
         #[test]
         fn test_to_bytes() {
             let extents = {
-                let mut pointers = [Extent::zeroed(); 30];
+                let mut pointers = vec![Extent::zeroed()];
 
                 pointers[0].start = 0xdf627312;
                 pointers[0].end = 0xef627312;
@@ -706,36 +805,44 @@ mod tests {
                 pointers
             };
 
-            let node = IndirectINode::new(0xadd7e55a, extents, 0xfeff12);
+            let node = IndirectINode::new(extents, 0xfeff12, 4096);
             assert!(node.perform_checksum());
 
-            let mut comp = {
-                let mut comp = vec![0u8; 512];
-
-                // Root
-                comp[0] = 0x5a;
-                comp[1] = 0xe5;
-                comp[2] = 0xd7;
-                comp[3] = 0xad;
+            let comp = {
+                let mut comp = vec![0u8; IndirectINode::NON_EXPANDABLE_SIZE as usize];
 
                 // Checksum
-                comp[8] = 146;
+                comp[0] = 84;
 
-                // Pointers
-                comp[24] = 0x12;
-                comp[25] = 0x73;
-                comp[26] = 0x62;
-                comp[27] = 0xdf;
-
-                comp[32] = 0x12;
-                comp[33] = 0x73;
-                comp[34] = 0x62;
-                comp[35] = 0xef;
+                // Reserved
+                comp[1] = 0; 
 
                 // Next
-                comp[504] = 0x12;
-                comp[505] = 0xff;
-                comp[506] = 0xfe;
+                comp[2] = 0x12;
+                comp[3] = 0xff;
+                comp[4] = 0xfe;
+                
+                // Number of extents
+                comp[10] = 1;
+
+                // Pointers
+                comp.push(0x12);
+                comp.push(0x73);
+                comp.push(0x62);
+                comp.push(0xdf);
+                comp.push(0);
+                comp.push(0);
+                comp.push(0);
+                comp.push(0);
+
+                comp.push(0x12);
+                comp.push(0x73);
+                comp.push(0x62);
+                comp.push(0xef);
+                comp.push(0);
+                comp.push(0);
+                comp.push(0);
+                comp.push(0);
 
                 comp
             };
@@ -747,39 +854,47 @@ mod tests {
 
         #[test]
         fn test_from_bytes() {
-            let mut comp = {
-                let mut comp = vec![0u8; 512];
-
-                // Root
-                comp[0] = 0x5a;
-                comp[1] = 0xe5;
-                comp[2] = 0xd7;
-                comp[3] = 0xad;
+            let comp = {
+                let mut comp = vec![0u8; IndirectINode::NON_EXPANDABLE_SIZE as usize];
 
                 // Checksum
-                comp[8] = 146;
+                comp[0] = 84;
 
-                // Pointers
-                comp[24] = 0x12;
-                comp[25] = 0x73;
-                comp[26] = 0x62;
-                comp[27] = 0xdf;
-
-                comp[32] = 0x12;
-                comp[33] = 0x73;
-                comp[34] = 0x62;
-                comp[35] = 0xef;
+                // Reserved
+                comp[1] = 0; 
 
                 // Next
-                comp[504] = 0x12;
-                comp[505] = 0xff;
-                comp[506] = 0xfe;
+                comp[2] = 0x12;
+                comp[3] = 0xff;
+                comp[4] = 0xfe;
+                
+                // Number of extents
+                comp[10] = 1;
+
+                // Pointers
+                comp.push(0x12);
+                comp.push(0x73);
+                comp.push(0x62);
+                comp.push(0xdf);
+                comp.push(0);
+                comp.push(0);
+                comp.push(0);
+                comp.push(0);
+
+                comp.push(0x12);
+                comp.push(0x73);
+                comp.push(0x62);
+                comp.push(0xef);
+                comp.push(0);
+                comp.push(0);
+                comp.push(0);
+                comp.push(0);
 
                 comp
             };
 
             let extents = {
-                let mut pointers = [Extent::zeroed(); 30];
+                let mut pointers = vec![Extent::zeroed()];
 
                 pointers[0].start = 0xdf627312;
                 pointers[0].end = 0xef627312;
@@ -787,10 +902,11 @@ mod tests {
                 pointers
             };
 
-            let node = IndirectINode::new(0xadd7e55a, extents, 0xfeff12);
+            let node = IndirectINode::new(extents, 0xfeff12, 4096);
             assert!(node.perform_checksum());
 
-            let comp = IndirectINode::from_bytes(&comp).unwrap();
+            let mut comp = IndirectINode::from_bytes(&comp).unwrap();
+            comp.maximum_extents = node.maximum_extents;
             assert!(comp.perform_checksum());
 
             assert_eq!(node, comp);
@@ -799,7 +915,7 @@ mod tests {
         #[test]
         fn test_to_from_bytes() {
             let extents = {
-                let mut pointers = [Extent::zeroed(); 30];
+                let mut pointers = vec![Extent::zeroed()];
 
                 pointers[0].start = 0xdf627312;
                 pointers[0].end = 0xef627312;
@@ -807,11 +923,12 @@ mod tests {
                 pointers
             };
 
-            let node = IndirectINode::new(0xadd7e55a, extents, 0xfeff12);
+            let node = IndirectINode::new(extents, 0xfeff12, 4096);
             assert!(node.perform_checksum());
 
-            let comp = IndirectINode::from_bytes(&node.to_bytes()).unwrap();
+            let mut comp = IndirectINode::from_bytes(&node.to_bytes()).unwrap();
             assert!(comp.perform_checksum());
+            comp.maximum_extents = node.maximum_extents; // This is
 
             assert_eq!(comp, node);
         }

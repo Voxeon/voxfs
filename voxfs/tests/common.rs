@@ -18,6 +18,7 @@ impl Handler {
         };
     }
 
+    #[allow(dead_code)]
     pub fn dump_disk(&self) -> Vec<u8> {
         return self.disk.clone();
     }
