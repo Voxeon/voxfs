@@ -311,7 +311,6 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
     }
 
     /// List the inodes on the disk, that are members of a tag
-    // TODO: TEST
     pub fn list_tag_nodes(&self, tag_index: u64) -> Result<Vec<INode>, VoxFSError<E>> {
         let mut tag = None;
 
