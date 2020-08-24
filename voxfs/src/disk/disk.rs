@@ -534,6 +534,42 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         return Ok(inode);
     }
 
+    /// Reads an entire file from the disk
+    pub fn read_file(&self, inode: &INode) -> Result<Vec<u8>, VoxFSError<E>> {
+        return self.read_file_bytes(inode, inode.file_size());
+    }
+
+    /// Reads a specified amount of bytes from the start of a file. If num_bytes is greater than the length of the file only up to the size of the file will be returned.
+    pub fn read_file_bytes(&self, inode: &INode, num_bytes: u64) -> Result<Vec<u8>, VoxFSError<E>> {
+        let mut result_bytes = Vec::new();
+
+        let num_bytes = {
+            if num_bytes > inode.file_size() {
+                inode.file_size()
+            } else {
+                num_bytes
+            }
+        };
+
+        // Whilst it is possible to read large chunks, for the sake of simplicity for the driver implementor, we will not read amounts larger than the block size.
+
+        for extent in &inode.blocks() {
+            for i in extent.start..=extent.end {
+                let addr = self.super_block.data_start_address + i * self.block_size;
+                let mut content = unwrap_error_aidfs_convertible!(self.handler.read_bytes(addr, self.block_size));
+
+                if self.block_size + (result_bytes.len() as u64) > num_bytes {
+                    let end_point = self.block_size - (result_bytes.len() as u64 % self.block_size);
+                    result_bytes.extend_from_slice(&content[..end_point as usize]);
+                } else {
+                    result_bytes.append(&mut content);
+                }
+            }
+        }
+
+        return Ok(result_bytes);
+    }
+
     /// Writes the block availability bit maps
     fn write_bitmaps(&mut self) -> Result<(), VoxFSError<E>> {
         // Write the tags bitmap

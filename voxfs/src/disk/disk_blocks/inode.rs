@@ -26,7 +26,7 @@ pub struct INode {
     index: u64,
     /// name, 125 bytes constant filled with null bytes otherwise
     name: [char; MAX_INODE_NAME_LENGTH],
-    /// size in bytes
+    /// size in bytes, this is the actual size NOT the on disk size.
     size: u64,
     /// flags (v,r,w,e), bits 5 - 8 are reserved
     flags: INodeFlags,
@@ -40,13 +40,14 @@ pub struct INode {
     checksum: u8,
     /// indirect block points to a block that only contains a list of pointers to other blocks
     indirect_block: u64,
-    /// The number of extents stored in THIS inode exlcuding indirect inodes.
+    /// The number of extents stored in THIS inode excluding indirect inodes.
     num_extents: u8,
     /// pointers to blocks, if a space is unused it will be represented simply by 0
     blocks: [Extent; 5],
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+/// An extent represents a range of blocks, it is inclusive at BOTH ends.
 pub struct Extent {
     pub start: u64,
     pub end: u64,
@@ -180,6 +181,14 @@ impl INode {
 
     pub fn index(&self) -> u64 {
         return self.index;
+    }
+
+    pub fn file_size(&self) -> u64 {
+        return self.size;
+    }
+
+    pub fn blocks(&self) -> [Extent; 5] {
+        return self.blocks;
     }
 }
 
