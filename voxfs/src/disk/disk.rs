@@ -18,7 +18,7 @@ pub struct Disk<'a, 'b, E: VoxFSErrorConvertible> {
     super_block: SuperBlock,
 
     tag_bitmap: BitMap,
-    pub inode_bitmap: BitMap,
+    inode_bitmap: BitMap,
     block_bitmap: BitMap,
 
     block_size: u64,
