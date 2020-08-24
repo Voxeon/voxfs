@@ -2,7 +2,7 @@ extern crate voxfs;
 use chrono::{DateTime, Utc};
 use voxfs::{DiskHandler, OSManager, VoxFSErrorConvertible};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Error {}
 
 impl VoxFSErrorConvertible for Error {}

@@ -30,8 +30,24 @@ impl BitMap {
         return m;
     }
 
+    /// Find the first free bit and return the index up to an index but not including said index. Useful for when a size that is not a multiple of 64 is needed.
+
+    pub fn find_next_0_index_up_to(&self, index: usize) -> Option<usize> {
+        for (i, val) in self.vc.iter().enumerate() {
+            if i == index {
+                break;
+            }
+
+            if *val < u64::MAX {
+                return Some(i * 64 + rightmost_unset_bit(*val));
+            }
+        }
+
+        return None;
+    }
+
     /// Find the first free bit and return the index
-    pub fn find_next_0_index(&self) -> Option<usize> {
+    fn find_next_0_index(&self) -> Option<usize> {
         for (i, val) in self.vc.iter().enumerate() {
             if *val < u64::MAX {
                 return Some(i * 64 + rightmost_unset_bit(*val));
@@ -161,6 +177,7 @@ impl BitMap {
         return sum;
     }
 
+    /// Count the number of zeroes up to an index but not including said index. Useful for when a size that is not a multiple of 64 is needed.
     pub fn count_zeros_up_to(&self, index: usize) -> Option<usize> {
         if index >= self.len() {
             return None;

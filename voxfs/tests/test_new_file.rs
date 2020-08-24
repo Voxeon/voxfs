@@ -30,7 +30,8 @@ fn test_create_new_file() {
         "test_file",
         INodeFlags::new(true, true, true, false),
         file_contents.clone(),
-    ).unwrap();
+    )
+    .unwrap();
 
     let mut ultra_large_file = vec![0u8; 4096 * 6]; // We want to take up more than 5 blocks so an indirect inode is required.
     ultra_large_file[0] = 0xff;
@@ -39,7 +40,11 @@ fn test_create_new_file() {
         "test_file_2",
         INodeFlags::new(true, true, true, false),
         ultra_large_file,
-    ).unwrap();
+    )
+    .unwrap();
 
-    assert_eq!(handler.dump_disk()[32768..32768+file_contents.len()].to_vec(), file_contents);
+    assert_eq!(
+        handler.dump_disk()[32768..32768 + file_contents.len()].to_vec(),
+        file_contents
+    );
 }

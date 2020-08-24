@@ -1,7 +1,9 @@
 use super::disk_blocks::SuperBlock;
 use super::DiskHandler;
 use crate::bitmap::BitMap;
-use crate::disk::disk_blocks::{Extent, INode, INodeFlags, TagBlock, TagFlags, IndirectINode};
+use crate::disk::disk_blocks::{
+    Extent, INode, INodeFlags, IndirectINode, IndirectTagBlock, TagBlock, TagFlags,
+};
 use crate::{ByteSerializable, OSManager, VoxFSError, VoxFSErrorConvertible};
 use alloc::{vec, vec::Vec};
 
@@ -25,7 +27,9 @@ pub struct Disk<'a, 'b, E: VoxFSErrorConvertible> {
     blocks_for_inode_map: u64,
     blocks_for_block_map: u64,
 
+    // No guarantees are made about the order of the inodes, they may not be in index order.
     tags: Vec<TagBlock>,
+    inodes: Vec<INode>,
 }
 
 macro_rules! unwrap_error_aidfs_convertible {
@@ -120,6 +124,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
             blocks_for_inode_map,
             blocks_for_block_map,
             tags: vec![root_tag],
+            inodes: Vec::new(),
         };
 
         // Write the root tag
@@ -133,7 +138,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
 
     /// Stores a new tag in the first available spot.
     pub fn store_tag_first_free(&mut self, tag: TagBlock) -> Result<(), VoxFSError<E>> {
-        let index = match self.tag_bitmap.find_next_0_index() {
+        let index = match self.tag_bitmap.find_next_0_index_up_to(self.super_block.tag_count() as usize) {
             Some(index) => index,
             None => return Err(VoxFSError::NoFreeInode),
         };
@@ -152,37 +157,239 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         return Ok(());
     }
 
+    /// List the tags stored on the disk.
     pub fn list_tags(&self) -> Vec<TagBlock> {
         return self.tags.clone();
     }
 
-    /// Reads and loads all the inodes on the filesystem.
-    pub fn retrieve_all_inodes(&mut self) -> Result<Vec<INode>, VoxFSError<E>> {
-        let mut inodes: Vec<INode> = Vec::new();
-
-        for (index, bit) in self.inode_bitmap.flatten_bool().iter().enumerate() {
-            if *bit {
-                let address = self.super_block.inode_start_address + (index as u64) * INode::size();
-
-                let bytes = unwrap_error_aidfs_convertible!(self.handler.read_bytes(address, INode::size()));
-                inodes.push(match INode::from_bytes(&bytes) {
-                    Some(node) => node,
-                    None => return Err(VoxFSError::CorruptedINode),
-                });
-            }
-        }
- 
-        return Ok(inodes);
+    /// List the inodes on the disk, this method doesn't reload them.
+    pub fn list_inodes(&self) -> Vec<INode> {
+        return self.inodes.clone();
     }
 
-    /// Creates a new file in the first available index in the first available INode location.
+    /// Add an inode to a tag
+    pub fn apply_tag(&mut self, tag_index: u64, inode: &INode) -> Result<(), VoxFSError<E>> {
+        let mut tag_self_index = None;
+
+        for (i, tag) in self.tags.iter().enumerate() {
+            if tag.index() == tag_index {
+                tag_self_index = Some(i);
+                break;
+            }
+        }
+
+        let tag_self_index = match tag_self_index {
+            Some(i) => i,
+            None => return Err(VoxFSError::CouldNotFindTag),
+        };
+
+        if self.tags[tag_self_index].number_of_pointers() >= TagBlock::MAXIMUM_LOCAL_MEMBERS {
+            /*
+            Two things must be checked.
+            1. Has this tag been applied before to this INode.
+            2. Where is a free spot?
+             */
+
+            for member in &self.tags[tag_self_index].members() {
+                if *member == inode.index() {
+                    return Err(VoxFSError::TagAlreadyAppliedToINode);
+                }
+            }
+
+            let mut next_address = self.tags[tag_self_index].indirect_pointer();
+            let mut previous_indirect = None;
+            let mut previous_indirect_location = None;
+            let mut depth = 0; // Track how many indirect tags we go through so that we can determine if a new one is required.
+            let mut free_indirect_tag_address: Option<u64> = None; // This tracks the location of an available spot in an inode
+
+            while next_address.is_some() {
+                let bytes = unwrap_error_aidfs_convertible!(self
+                    .handler
+                    .read_bytes(next_address.unwrap(), self.block_size));
+
+                let indirect_tag = match IndirectTagBlock::from_bytes(&bytes) {
+                    Some(t) => t,
+                    None => return Err(VoxFSError::CorruptedIndirectTag),
+                };
+
+                let members = indirect_tag.members();
+
+                for i in 0..indirect_tag.number_of_members() as usize {
+                    let member = members[i];
+                    if member == inode.index() {
+                        return Err(VoxFSError::TagAlreadyAppliedToINode);
+                    }
+                }
+
+                if free_indirect_tag_address.is_none()
+                    && (indirect_tag.number_of_members() as u64)
+                        < IndirectTagBlock::max_members_for_blocksize(self.block_size)
+                {
+                    free_indirect_tag_address = next_address;
+                }
+
+                let nxt = indirect_tag.next();
+                previous_indirect = Some(indirect_tag);
+                previous_indirect_location = Some(next_address.unwrap());
+                next_address = nxt;
+
+                depth += 1;
+            }
+
+            if free_indirect_tag_address.is_none() {
+                // Create a new indirect tag
+                let mut indirect_tag = IndirectTagBlock::new(
+                    self.tags[tag_self_index].index(),
+                    vec![inode.index()],
+                    0,
+                    self.block_size,
+                );
+
+                let index = match self.find_block() {
+                    Some(index) =>  {
+                        index
+                    },
+                    None => return Err(VoxFSError::NotEnoughFreeDataBlocks),
+                };
+
+                let location = self.super_block.data_start_address + index * self.block_size;
+
+                self.block_bitmap.set_bit(index as usize, true);
+                unwrap_error_aidfs_convertible!(self.handler.write_bytes(&indirect_tag.to_bytes_padded(self.block_size as usize), location));
+                self.write_bitmaps()?;
+
+                match previous_indirect {
+                    Some(mut i) => {
+                        i.set_next(location);
+
+                        unwrap_error_aidfs_convertible!(self.handler.write_bytes(&i.to_bytes_padded(self.block_size as usize), previous_indirect_location.unwrap()));
+                    }
+                    None => {
+                        self.tags[tag_self_index].set_indirect(location);
+                        unwrap_error_aidfs_convertible!(self.handler.write_bytes(&self.tags[tag_self_index].to_bytes().to_vec(),
+                                self.super_block.tag_start_address + self.tags[tag_self_index].index() * TagBlock::size()
+                            ));
+                    }
+                }
+
+            } else {
+                let mut indirect = match IndirectTagBlock::from_bytes(&unwrap_error_aidfs_convertible!(self
+                    .handler
+                    .read_bytes(free_indirect_tag_address.unwrap(), self.block_size))) {
+                    Some(i) => i,
+                    None => return Err(VoxFSError::CorruptedIndirectTag),
+                };
+
+                indirect.set_block_size(self.block_size);
+
+                if !indirect.append_member(inode.index()) {
+                    return Err(VoxFSError::FailedIndirectTagAppend);
+                }
+
+                unwrap_error_aidfs_convertible!(self
+                    .handler
+                    .write_bytes(&indirect.to_bytes_padded(self.block_size as usize), free_indirect_tag_address.unwrap()));
+            }
+        } else {
+            // Check if this tag has already been applied.
+            for i in 0..self.tags[tag_self_index].number_of_pointers() {
+                if self.tags[tag_self_index].member_at(i) == inode.index() {
+                    return Err(VoxFSError::TagAlreadyAppliedToINode);
+                }
+            }
+
+            self.tags[tag_self_index].append_member(inode.index());
+
+            unwrap_error_aidfs_convertible!(self.handler.write_bytes(
+                &self.tags[tag_self_index].to_bytes().to_vec(),
+                self.super_block.tag_start_address
+                    + self.tags[tag_self_index].index() * TagBlock::size()
+            ));
+        }
+
+        return Ok(());
+    }
+
+    /// List the inodes on the disk, that are members of a tag
+    // TODO: TEST
+    pub fn list_tag_nodes(&self, tag_index: u64) -> Result<Vec<INode>, VoxFSError<E>> {
+        let mut tag = None;
+
+        for t in &self.tags {
+            if t.index() == tag_index {
+                tag = Some(t);
+                break;
+            }
+        }
+
+        if tag.is_none() {
+            return Err(VoxFSError::CouldNotFindTag);
+        }
+
+        let tag = tag.unwrap();
+
+        let mut nodes = Vec::new();
+
+        match tag.indirect_pointer() {
+            Some(indirect_address) => {
+                let mut next_address = Some(indirect_address);
+                let members = tag.members().to_vec();
+
+                for i in 0..tag.number_of_pointers() {
+                    let index = members[i as usize];
+
+                    for node in &self.inodes {
+                        if node.index() == index {
+                            nodes.push(*node);
+                        }
+                    }
+                }
+
+                while next_address.is_some() {
+                    let bytes = unwrap_error_aidfs_convertible!(self
+                        .handler
+                        .read_bytes(next_address.unwrap(), self.block_size));
+                    let block = IndirectTagBlock::from_bytes(&bytes).unwrap();
+
+                    let block_members = block.members();
+
+                    for i in 0..block.number_of_members() as usize {
+                        for node in &self.inodes {
+                            if node.index() == block_members[i] {
+                                nodes.push(*node);
+                            }
+                        }
+                    }
+
+                    next_address = block.next();
+                }
+            }
+            None => {
+                let members = tag.members();
+
+                for i in 0..tag.number_of_pointers() {
+                    let index = members[i as usize];
+
+                    for node in &self.inodes {
+                        if node.index() == index {
+                            nodes.push(*node);
+                        }
+                    }
+                }
+            }
+        }
+
+        return Ok(nodes);
+    }
+
+    /// Creates a new file in the first available index in the first available INode location. A copy of the inode is returned but the original is stored in the disk.
     pub fn create_new_file_first_free(
         &mut self,
         name: &str,
         flags: INodeFlags,
         contents: Vec<u8>,
     ) -> Result<INode, VoxFSError<E>> {
-        let inode_index = match self.inode_bitmap.find_next_0_index() {
+        let inode_index = match self.inode_bitmap.find_next_0_index_up_to(self.super_block.inode_count() as usize) {
             Some(index) => index,
             None => return Err(VoxFSError::NoFreeInode),
         };
@@ -224,7 +431,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
 
         if blocks.len() > 5 {
             let mut inode_extents = [Extent::zeroed(); 5];
-            
+
             for i in 0..5 {
                 inode_extents[i].start = blocks[i].0;
                 inode_extents[i].end = blocks[i].1;
@@ -232,7 +439,8 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
 
             let mut indirects_addresses = Vec::new();
 
-            let amount_per_indirect = IndirectINode::max_extents_for_blocksize(self.block_size) as usize;
+            let amount_per_indirect =
+                IndirectINode::max_extents_for_blocksize(self.block_size) as usize;
             for mut i in 5..blocks.len() {
                 let mut block_indirects = Vec::new();
 
@@ -240,7 +448,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                     block_indirects.push(blocks[i]);
                     i += 1;
                 }
-                
+
                 indirects_addresses.push(block_indirects);
             }
 
@@ -248,19 +456,30 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
 
             for address_group in indirects_addresses.iter().rev() {
                 // Find a block
-                let block_index = match self.block_bitmap.find_next_0_index() {
+                let block_index = match self.block_bitmap.find_next_0_index_up_to(self.super_block.block_count() as usize) {
                     Some(b) => b as u64,
                     None => return Err(VoxFSError::NotEnoughFreeDataBlocks),
                 };
 
                 let address = self.super_block.data_start_address + block_index * self.block_size;
-                let block = IndirectINode::new(address_group.iter().map(|b| Extent{ start: b.0, end: b.1 }).collect(), previous_address, self.block_size);
-                unwrap_error_aidfs_convertible!(self.handler.write_bytes(&block.to_bytes(), address));
+                let block = IndirectINode::new(
+                    address_group
+                        .iter()
+                        .map(|b| Extent {
+                            start: b.0,
+                            end: b.1,
+                        })
+                        .collect(),
+                    previous_address,
+                    self.block_size,
+                );
+                unwrap_error_aidfs_convertible!(self
+                    .handler
+                    .write_bytes(&block.to_bytes(), address));
                 previous_address = address;
                 self.block_bitmap.set_bit(block_index as usize, true);
             }
 
-            
             let current_time = self.manager.current_time();
 
             inode = INode::new(
@@ -274,8 +493,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                 previous_address,
                 blocks.len() as u8,
                 inode_extents,
-            ); 
-
+            );
         } else {
             let mut extent_blocks = [Extent::zeroed(); 5];
 
@@ -285,7 +503,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                     end: blocks[i].1,
                 };
             }
-    
+
             let current_time = self.manager.current_time();
             inode = INode::new(
                 inode_index as u64,
@@ -312,11 +530,13 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
 
         self.write_bitmaps()?;
 
+        self.inodes.push(inode);
+
         return Ok(inode);
     }
 
-     /// Writes the block availability bit maps
-     fn write_bitmaps(&mut self) -> Result<(), VoxFSError<E>> {
+    /// Writes the block availability bit maps
+    fn write_bitmaps(&mut self) -> Result<(), VoxFSError<E>> {
         // Write the tags bitmap
         unwrap_error_aidfs_convertible!(self
             .handler
@@ -337,6 +557,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         return Ok(());
     }
 
+    /// Load a list of the tags from the disk
     fn load_tags(&self) -> Result<Vec<TagBlock>, VoxFSError<E>> {
         let mut tags = Vec::new();
 
@@ -357,6 +578,27 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         }
 
         return Ok(tags);
+    }
+
+    /// Reads and loads all the inodes on the filesystem.
+    fn load_inodes(&mut self) -> Result<Vec<INode>, VoxFSError<E>> {
+        let mut inodes: Vec<INode> = Vec::new();
+
+        for (index, bit) in self.inode_bitmap.flatten_bool().iter().enumerate() {
+            if *bit {
+                let address = self.super_block.inode_start_address + (index as u64) * INode::size();
+
+                let bytes = unwrap_error_aidfs_convertible!(self
+                    .handler
+                    .read_bytes(address, INode::size()));
+                inodes.push(match INode::from_bytes(&bytes) {
+                    Some(node) => node,
+                    None => return Err(VoxFSError::CorruptedINode),
+                });
+            }
+        }
+
+        return Ok(inodes);
     }
 
     /// Locates extents and returns a vector of tuples where .0 is the start address and .1 is the end address.
@@ -383,7 +625,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         let mut res = Vec::new();
         let mut blocks_found = 0;
 
-        let mut first_index = self.block_bitmap.find_next_0_index().unwrap() as u64;
+        let mut first_index = self.block_bitmap.find_next_0_index_up_to(self.super_block.block_count() as usize).unwrap() as u64;
 
         // Find the largest available extent first them work down to individual blocks.
         while blocks_found < num_blocks_required {
@@ -441,5 +683,23 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         }
 
         return Some(res);
+    }
+
+    /// Locates a single available data block.
+    fn find_block(&self) -> Option<u64> {
+        // Check if we have enough blocks.
+        if (self
+            .block_bitmap
+            .count_zeros_up_to(self.super_block.block_count() as usize))
+            .unwrap()
+            < 1
+        {
+            return None;
+        }
+
+        return match self.block_bitmap.find_next_0_index_up_to(self.super_block.block_count() as usize) {
+            Some(v) => Some(v as u64),
+            None => None
+        };
     }
 }

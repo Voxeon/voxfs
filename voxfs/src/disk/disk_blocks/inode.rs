@@ -1,9 +1,9 @@
 use crate::ByteSerializable;
 use crate::Checksum;
+use alloc::string::String;
 use alloc::{vec, vec::Vec};
 use byteorder::{ByteOrder, LittleEndian};
 use chrono::{DateTime, Utc};
-use alloc::string::String;
 
 const MAX_INODE_NAME_LENGTH: usize = 125;
 
@@ -67,7 +67,7 @@ pub struct IndirectINode {
     pointers: Vec<Extent>,
 
     /// This is NOT serialized or placed on disk, it is for the methods to know the limit for the number of extents.
-    pub maximum_extents: u64
+    pub maximum_extents: u64,
 }
 
 impl INodeFlags {
@@ -169,10 +169,23 @@ impl INode {
 
         return self.name[..first_null_byte].iter().collect();
     }
+
+    pub fn indirect_pointer(&self) -> Option<u64> {
+        if self.indirect_block == 0 {
+            return None;
+        } else {
+            return Some(self.indirect_block);
+        }
+    }
+
+    pub fn index(&self) -> u64 {
+        return self.index;
+    }
 }
 
 impl Checksum for INode {
     fn set_checksum(&mut self) {
+        self.checksum = 0; // For the purpose of calculation
         self.checksum = self.calculate_checksum();
     }
 }
@@ -383,6 +396,8 @@ impl IndirectINode {
     pub fn new(pointers: Vec<Extent>, next: u64, block_size: u64) -> Self {
         assert!(block_size > 256);
         assert!(pointers.len() < u16::MAX as usize);
+        let maximum_extents = Self::max_extents_for_blocksize(block_size);
+        assert!(pointers.len() <= maximum_extents as usize);
 
         let mut res = Self {
             checksum: 0,
@@ -390,7 +405,7 @@ impl IndirectINode {
             num_extents: pointers.len() as u16,
             pointers,
             next,
-            maximum_extents: Self::max_extents_for_blocksize(block_size),
+            maximum_extents,
         };
 
         res.set_checksum();
@@ -451,7 +466,7 @@ impl ByteSerializable for IndirectINode {
 
         bytes.push(self.checksum);
         bytes.push(self.reserved);
-        
+
         LittleEndian::write_u64(&mut working, self.next);
         bytes.extend_from_slice(&working);
 
@@ -527,6 +542,7 @@ impl ByteSerializable for IndirectINode {
 
 impl Checksum for IndirectINode {
     fn set_checksum(&mut self) {
+        self.checksum = 0; // For the purpose of calculation
         self.checksum = self.calculate_checksum();
     }
 }
@@ -815,13 +831,13 @@ mod tests {
                 comp[0] = 84;
 
                 // Reserved
-                comp[1] = 0; 
+                comp[1] = 0;
 
                 // Next
                 comp[2] = 0x12;
                 comp[3] = 0xff;
                 comp[4] = 0xfe;
-                
+
                 // Number of extents
                 comp[10] = 1;
 
@@ -861,13 +877,13 @@ mod tests {
                 comp[0] = 84;
 
                 // Reserved
-                comp[1] = 0; 
+                comp[1] = 0;
 
                 // Next
                 comp[2] = 0x12;
                 comp[3] = 0xff;
                 comp[4] = 0xfe;
-                
+
                 // Number of extents
                 comp[10] = 1;
 

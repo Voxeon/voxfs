@@ -13,11 +13,11 @@ pub struct SuperBlock {
 
     /// The size of the blocks
     block_size: u64,
-    /// The number of tags. Rounded up to the nearest block alignment.
+    /// The number of spaces for tags. Rounded up to the nearest block alignment.
     tag_count: u64,
-    /// The number of inodes. Rounded up to the nearest block alignment.
+    /// The number of spaces for inodes. Rounded up to the nearest block alignment.
     inode_count: u64,
-    /// The number of data blocks.
+    /// The number of spaces for data blocks.
     block_count: u64,
 
     /// The address at which the tags are contained.
@@ -206,6 +206,7 @@ impl ByteSerializable for SuperBlock {
 
 impl Checksum for SuperBlock {
     fn set_checksum(&mut self) {
+        self.checksum = 0; // For the purpose of calculation
         self.checksum = self.calculate_checksum();
     }
 }
