@@ -1,5 +1,5 @@
 use crate::{ByteSerializable, Checksum};
-use alloc::{vec, vec::Vec};
+use alloc::vec::Vec;
 use byteorder::{ByteOrder, LittleEndian};
 
 #[derive(Clone, Copy)]

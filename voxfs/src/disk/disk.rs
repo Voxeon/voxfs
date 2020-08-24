@@ -9,8 +9,6 @@ use alloc::{vec, vec::Vec};
 
 const DEFAULT_BLOCK_SIZE: u64 = 4_096; // In bytes. 4KiB.
 
-// Disk padding size 128 bytes
-
 pub struct Disk<'a, 'b, E: VoxFSErrorConvertible> {
     handler: &'a mut dyn DiskHandler<E>,
     manager: &'b mut dyn OSManager,
@@ -199,7 +197,6 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
             let mut next_address = self.tags[tag_self_index].indirect_pointer();
             let mut previous_indirect = None;
             let mut previous_indirect_location = None;
-            let mut depth = 0; // Track how many indirect tags we go through so that we can determine if a new one is required.
             let mut free_indirect_tag_address: Option<u64> = None; // This tracks the location of an available spot in an inode
 
             while next_address.is_some() {
@@ -232,13 +229,11 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                 previous_indirect = Some(indirect_tag);
                 previous_indirect_location = Some(next_address.unwrap());
                 next_address = nxt;
-
-                depth += 1;
             }
 
             if free_indirect_tag_address.is_none() {
                 // Create a new indirect tag
-                let mut indirect_tag = IndirectTagBlock::new(
+                let indirect_tag = IndirectTagBlock::new(
                     self.tags[tag_self_index].index(),
                     vec![inode.index()],
                     0,

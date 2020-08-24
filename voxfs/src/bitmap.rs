@@ -112,7 +112,7 @@ impl BitMap {
         }
 
         let value = self.vc[array_index];
-        let b = ((value >> bit) & 1);
+        let b = (value >> bit) & 1;
 
         return Some(b == 1);
     }
