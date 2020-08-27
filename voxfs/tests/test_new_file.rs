@@ -13,7 +13,7 @@ fn test_create_new_file() {
         0,
         "root",
         TagFlags::new(true, true),
-        manager.current_time().timestamp_nanos() as u64,
+        manager.current_time(),
         0x0,
         0x0,
         [0u64; 12],

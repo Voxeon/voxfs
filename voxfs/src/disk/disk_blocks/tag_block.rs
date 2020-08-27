@@ -1,6 +1,7 @@
 use crate::{ByteSerializable, Checksum};
 use alloc::vec::Vec;
 use byteorder::{ByteOrder, LittleEndian};
+use chrono::{DateTime, Utc};
 
 #[derive(Clone, Copy)]
 /// Length of 256 bytes
@@ -58,6 +59,18 @@ impl TagBlock {
         index: u64,
         name_str: &str,
         flags: TagFlags,
+        creation_time: DateTime<Utc>,
+        indirect: u64,
+        number_of_pointers: u16,
+        members: [u64; 12],
+    ) -> Self {
+        return Self::new_custom_creation_time(index, name_str, flags, creation_time.timestamp_nanos() as u64, indirect, number_of_pointers, members);
+    }
+
+    fn new_custom_creation_time(
+        index: u64,
+        name_str: &str,
+        flags: TagFlags,
         creation_time: u64,
         indirect: u64,
         number_of_pointers: u16,
@@ -99,6 +112,10 @@ impl TagBlock {
         } else {
             return Some(self.indirect);
         }
+    }
+
+    pub fn set_index(&mut self, index: u64) {
+        self.index = index;
     }
 
     pub fn set_indirect(&mut self, indirect: u64) {
@@ -579,7 +596,7 @@ mod tests {
         fn test_new() {
             let mut members = [0u64; 12];
             members[0] = 0x33;
-            let block = TagBlock::new(
+            let block = TagBlock::new_custom_creation_time(
                 0,
                 "files",
                 TagFlags::new(true, false),
@@ -618,7 +635,7 @@ mod tests {
             let mut members = [0u64; 12];
             members[0] = 0x33;
 
-            let block = TagBlock::new(
+            let block = TagBlock::new_custom_creation_time(
                 0,
                 "files",
                 TagFlags::new(true, false),
@@ -628,7 +645,7 @@ mod tests {
                 members,
             );
 
-            let block2 = TagBlock::new(
+            let block2 = TagBlock::new_custom_creation_time(
                 0,
                 "files",
                 TagFlags::new(true, false),
@@ -646,7 +663,7 @@ mod tests {
             let mut members = [0u64; 12];
             members[0] = 0x32;
 
-            let block = TagBlock::new(
+            let block = TagBlock::new_custom_creation_time(
                 0,
                 "iles",
                 TagFlags::new(true, false),
@@ -656,7 +673,7 @@ mod tests {
                 members,
             );
 
-            let block2 = TagBlock::new(
+            let block2 = TagBlock::new_custom_creation_time(
                 0,
                 "files",
                 TagFlags::new(true, false),
@@ -673,7 +690,7 @@ mod tests {
         fn test_checksum_success() {
             let mut members = [0u64; 12];
             members[0] = 0x33;
-            let block = TagBlock::new(
+            let block = TagBlock::new_custom_creation_time(
                 1,
                 "files",
                 TagFlags::new(true, false),
@@ -690,7 +707,7 @@ mod tests {
         fn test_checksum_fail() {
             let mut members = [0u64; 12];
             members[0] = 0x33;
-            let mut block = TagBlock::new(
+            let mut block = TagBlock::new_custom_creation_time(
                 1,
                 "files",
                 TagFlags::new(true, false),
@@ -710,7 +727,7 @@ mod tests {
         fn test_to_bytes() {
             let mut members = [0u64; 12];
             members[0] = 0x33;
-            let block = TagBlock::new(
+            let block = TagBlock::new_custom_creation_time(
                 1,
                 "files",
                 TagFlags::new(true, false),
@@ -763,7 +780,7 @@ mod tests {
         fn test_from_bytes() {
             let mut members = [0u64; 12];
             members[0] = 0x33;
-            let block = TagBlock::new(
+            let block = TagBlock::new_custom_creation_time(
                 1,
                 "files",
                 TagFlags::new(true, false),

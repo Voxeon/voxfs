@@ -59,7 +59,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
             0,
             "root",
             TagFlags::new(true, true),
-            manager.current_time().timestamp_nanos() as u64,
+            manager.current_time(),
             0x0,
             0x0,
             [0u64; 12],
@@ -187,25 +187,14 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         return Ok(s);
     }
 
-    /// Stores a new tag in the first available spot.
-    fn store_tag_first_free(&mut self, tag: TagBlock) -> Result<(), VoxFSError<E>> {
-        let index = match self.tag_bitmap.find_next_0_index_up_to(self.super_block.tag_count() as usize) {
-            Some(index) => index,
-            None => return Err(VoxFSError::NoFreeInode),
-        };
+    pub fn create_new_tag(&mut self, name: &str, flags: TagFlags) -> Result<TagBlock, VoxFSError<E>> {
+        // store_tag_first_free will set the index
+        let tag = TagBlock::new(0, name, flags, self.manager.current_time(), 0, 0, [0u64; 12]);
 
-        unwrap_error_aidfs_convertible!(self.handler.write_bytes(
-            &tag.to_bytes().to_vec(),
-            self.super_block.tag_start_address() + (index as u64) * TagBlock::size()
-        ));
+        let tag = self.store_tag_first_free(tag)?;
+        self.tags.push(tag);
 
-        if !self.tag_bitmap.set_bit(index, true) {
-            panic!("Unexpected fail."); // This should never happen but if it does then its a developer error so panic.
-        }
-
-        self.write_bitmaps()?;
-
-        return Ok(());
+        return Ok(tag);
     }
 
     /// List the tags stored on the disk.
@@ -638,6 +627,29 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         )); // We start at blocksize because of the superblock then skip the tag map and inode map
 
         return Ok(());
+    }
+
+    /// Stores a new tag in the first available spot. It will set the index field of the tag block
+    fn store_tag_first_free(&mut self, mut tag: TagBlock) -> Result<TagBlock, VoxFSError<E>> {
+        let index = match self.tag_bitmap.find_next_0_index_up_to(self.super_block.tag_count() as usize) {
+            Some(index) => index,
+            None => return Err(VoxFSError::NoFreeInode),
+        };
+
+        tag.set_index(index as u64);
+
+        unwrap_error_aidfs_convertible!(self.handler.write_bytes(
+            &tag.to_bytes().to_vec(),
+            self.super_block.tag_start_address() + (index as u64) * TagBlock::size()
+        ));
+
+        if !self.tag_bitmap.set_bit(index, true) {
+            panic!("Unexpected fail."); // This should never happen but if it does then its a developer error so panic.
+        }
+
+        self.write_bitmaps()?;
+
+        return Ok(tag);
     }
 
     /// Load a list of the tags from the disk

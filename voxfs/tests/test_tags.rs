@@ -13,7 +13,7 @@ fn test_tags() {
         0,
         "root",
         TagFlags::new(true, true),
-        manager.current_time().timestamp_nanos() as u64,
+        manager.current_time(),
         0x0,
         0x0,
         [0u64; 12],
@@ -76,7 +76,7 @@ fn test_tags_12() {
         0,
         "root",
         TagFlags::new(true, true),
-        manager.current_time().timestamp_nanos() as u64,
+        manager.current_time(),
         0x0,
         0x0,
         [0u64; 12],
@@ -116,7 +116,7 @@ fn test_tags_duplicate() {
         0,
         "root",
         TagFlags::new(true, true),
-        manager.current_time().timestamp_nanos() as u64,
+        manager.current_time(),
         0x0,
         0x0,
         [0u64; 12],
@@ -161,7 +161,7 @@ fn test_tags_indirect() {
         0,
         "root",
         TagFlags::new(true, true),
-        manager.current_time().timestamp_nanos() as u64,
+        manager.current_time(),
         0x0,
         0x0,
         [0u64; 12],
@@ -192,7 +192,6 @@ fn test_tags_indirect() {
     assert_eq!(disk.list_tag_nodes(0).unwrap(), comp_nodes);
 }
 
-
 #[test]
 fn test_tags_indirects() {
     let mut handler = Handler::new(4096 * 1000); // Disk size of 120 KiB
@@ -202,7 +201,7 @@ fn test_tags_indirects() {
         0,
         "root",
         TagFlags::new(true, true),
-        manager.current_time().timestamp_nanos() as u64,
+        manager.current_time(),
         0x0,
         0x0,
         [0u64; 12],
@@ -231,4 +230,71 @@ fn test_tags_indirects() {
     }
 
     assert_eq!(disk.list_tag_nodes(0).unwrap(), comp_nodes);
+}
+
+#[test]
+fn test_custom_tag() {
+    let mut handler = Handler::new(4096 * 30); // Disk size of 120 KiB
+    let mut manager = Manager::new();
+
+    let root_tag = TagBlock::new(
+        0,
+        "root",
+        TagFlags::new(true, true),
+        manager.current_time(),
+        0x0,
+        0x0,
+        [0u64; 12],
+    );
+
+    let mut disk =
+        Disk::make_new_filesystem_with_root(&mut handler, &mut manager, root_tag.clone()).unwrap();
+
+    let custom_tag = disk.create_new_tag("file_1", TagFlags::new(true, true)).unwrap();
+
+    assert_eq!(custom_tag.index(), 1);
+
+    let file_contents = "The file contents are testing, 1234, ok so this should be one block!"
+        .as_bytes()
+        .to_vec();
+
+    let mut comp_nodes = Vec::new();
+
+    comp_nodes.push(
+        disk.create_new_file_first_free(
+            "test_file",
+            INodeFlags::new(true, true, true, false),
+            file_contents.clone(),
+        )
+            .unwrap(),
+    );
+
+    let mut ultra_large_file = vec![0u8; 4096 * 6]; // We want to take up more than 5 blocks so an indirect inode is required.
+    ultra_large_file[0] = 0xff;
+
+    comp_nodes.push(
+        disk.create_new_file_first_free(
+            "test_file_2",
+            INodeFlags::new(true, true, true, false),
+            ultra_large_file,
+        )
+            .unwrap(),
+    );
+
+    let file_contents_2 = "Different file contents for this file!".as_bytes().to_vec();
+
+    comp_nodes.push(
+        disk.create_new_file_first_free(
+            "test_file",
+            INodeFlags::new(true, true, true, false),
+            file_contents_2.clone(),
+        )
+            .unwrap(),
+    );
+
+    disk.apply_tag(custom_tag.index(), &comp_nodes[0]).unwrap();
+    disk.apply_tag(custom_tag.index(), &comp_nodes[1]).unwrap();
+    disk.apply_tag(custom_tag.index(), &comp_nodes[2]).unwrap();
+
+    assert_eq!(disk.list_tag_nodes(custom_tag.index()).unwrap(), comp_nodes);
 }
