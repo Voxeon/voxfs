@@ -6,6 +6,7 @@ pub struct BitMap {
     vc: Vec<u64>,
 }
 
+#[allow(dead_code)]
 impl BitMap {
     /// Constructs a new bitmap with a maximum size, defaulted to all 0's
     pub fn new(size: usize) -> Self {
@@ -47,7 +48,7 @@ impl BitMap {
     }
 
     /// Find the first free bit and return the index
-    fn find_next_0_index(&self) -> Option<usize> {
+    pub fn find_next_0_index(&self) -> Option<usize> {
         for (i, val) in self.vc.iter().enumerate() {
             if *val < u64::MAX {
                 return Some(i * 64 + rightmost_unset_bit(*val));

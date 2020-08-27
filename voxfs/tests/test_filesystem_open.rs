@@ -34,7 +34,7 @@ fn test_open_single_file() {
 
     drop(disk);
 
-    let mut disk = Disk::open_disk(&mut handler, &mut manager).unwrap();
+    let disk = Disk::open_disk(&mut handler, &mut manager).unwrap();
     let tags = disk.list_tags();
     let inodes = disk.list_inodes();
 
@@ -82,7 +82,7 @@ fn test_open_single_large_file() {
 
     drop(disk);
 
-    let mut disk = Disk::open_disk(&mut handler, &mut manager).unwrap();
+    let disk = Disk::open_disk(&mut handler, &mut manager).unwrap();
     let tags = disk.list_tags();
     let inodes = disk.list_inodes();
 
@@ -128,7 +128,7 @@ fn test_open_multiple_small_files() {
 
     drop(disk);
 
-    let mut disk = Disk::open_disk(&mut handler, &mut manager).unwrap();
+    let disk = Disk::open_disk(&mut handler, &mut manager).unwrap();
     let tags = disk.list_tags();
     let inodes = disk.list_inodes();
 
@@ -182,7 +182,7 @@ fn test_open_multiple_large_files() {
 
     drop(disk);
 
-    let mut disk = Disk::open_disk(&mut handler, &mut manager).unwrap();
+    let disk = Disk::open_disk(&mut handler, &mut manager).unwrap();
     let tags = disk.list_tags();
     let inodes = disk.list_inodes();
 
@@ -227,12 +227,12 @@ fn test_open_multiple_small_files_tagged() {
             file_contents.clone(),
         ).unwrap());
 
-        disk.apply_tag(0, &comp_inodes[i]);
+        disk.apply_tag(0, &comp_inodes[i]).unwrap();
     }
 
     drop(disk);
 
-    let mut disk = Disk::open_disk(&mut handler, &mut manager).unwrap();
+    let disk = Disk::open_disk(&mut handler, &mut manager).unwrap();
     let tags = disk.list_tags();
     let inodes = disk.list_tag_nodes(0).unwrap();
 
