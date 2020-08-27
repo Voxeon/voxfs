@@ -18,6 +18,7 @@ pub enum VoxFSError<E> {
     CorruptedTag,
     CorruptedIndirectTag,
     CorruptedINode,
+    CorruptedSuperBlock,
     NotEnoughFreeDataBlocks,
     BlockAlreadyAllocated,
     CouldNotFindTag,

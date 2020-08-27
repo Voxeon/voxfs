@@ -39,6 +39,16 @@ macro_rules! unwrap_error_aidfs_convertible {
     };
 }
 
+macro_rules! rounded_to_alignment {
+                ($n:expr, $block_size:expr) => {{
+                if ($n as u64 % ($block_size * 8)) != 0 {
+                    $n as u64 / ($block_size * 8) + 1
+                } else {
+                    $n as u64 / ($block_size * 8)
+                }
+            }};
+}
+
 impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
     /// Constructs a new filesystem.
     pub fn make_new_filesystem(
@@ -72,7 +82,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         }
 
         let mut super_block = SuperBlock::new(block_size, disk_size);
-        unwrap_error_aidfs_convertible!(handler.zero_range(0, DEFAULT_BLOCK_SIZE)); // Zero the first block.
+        unwrap_error_aidfs_convertible!(handler.zero_range(0, block_size)); // Zero the first block.
 
         let mut offset = DEFAULT_BLOCK_SIZE;
 
@@ -82,30 +92,26 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         let block_bitmap = BitMap::new(super_block.block_count() as usize);
 
         macro_rules! bitmap_rounded_to_alignment {
-            ($bitmap:expr, $block_size:expr) => {{
-                if ($bitmap.len() as u64 % ($block_size * 8)) != 0 {
-                    $bitmap.len() as u64 / ($block_size * 8) + 1
-                } else {
-                    $bitmap.len() as u64 / ($block_size * 8)
-                }
-            }};
+            ($bitmap:expr, $block_size:expr) => {
+                rounded_to_alignment!($bitmap.len(), block_size)
+            };
         }
 
-        let blocks_for_tag_map = bitmap_rounded_to_alignment!(tag_bitmap, DEFAULT_BLOCK_SIZE);
-        let blocks_for_inode_map = bitmap_rounded_to_alignment!(inode_bitmap, DEFAULT_BLOCK_SIZE);
-        let blocks_for_block_map = bitmap_rounded_to_alignment!(block_bitmap, DEFAULT_BLOCK_SIZE);
+        let blocks_for_tag_map = bitmap_rounded_to_alignment!(tag_bitmap, block_size);
+        let blocks_for_inode_map = bitmap_rounded_to_alignment!(inode_bitmap, block_size);
+        let blocks_for_block_map = bitmap_rounded_to_alignment!(block_bitmap, block_size);
 
         offset +=
-            (blocks_for_tag_map + blocks_for_inode_map + blocks_for_block_map) * DEFAULT_BLOCK_SIZE;
+            (blocks_for_tag_map + blocks_for_inode_map + blocks_for_block_map) * block_size;
 
         // Setup the addresses
-        super_block.tag_start_address = offset;
-        offset += DEFAULT_BLOCK_SIZE * super_block.blocks_for_tags();
+        super_block.set_tag_start_address(offset);
+        offset += block_size * super_block.blocks_for_tags();
 
-        super_block.inode_start_address = offset;
-        offset += DEFAULT_BLOCK_SIZE * super_block.blocks_for_inodes();
+        super_block.set_inode_start_address(offset);
+        offset += block_size * super_block.blocks_for_inodes();
 
-        super_block.data_start_address = offset;
+        super_block.set_data_start_address(offset);
 
         // Write the super block
         unwrap_error_aidfs_convertible!(handler.write_bytes(&super_block.to_bytes().to_vec(), 0));
@@ -134,8 +140,55 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         return Ok(new_disk);
     }
 
+    /// Opens a disk, loading the required details
+    pub fn open_disk(handler: &'a mut dyn DiskHandler<E>, manager: &'b mut dyn OSManager) -> Result<Self, VoxFSError<E>> {
+        // Things to do:
+        // 1: Load the super block
+        // 2: Load the bitmaps
+
+        let block_size = DEFAULT_BLOCK_SIZE;
+        let first_block = unwrap_error_aidfs_convertible!(handler.read_bytes(0, block_size));
+        let super_block = match SuperBlock::from_bytes(&first_block) {
+            Some(b) => b,
+            None => return Err(VoxFSError::CorruptedSuperBlock),
+        };
+
+        let block_size = super_block.block_size();
+        let blocks_for_tag_map = rounded_to_alignment!(super_block.tag_count(), block_size);
+        let blocks_for_inode_map = rounded_to_alignment!(super_block.inode_count(), block_size);
+        let blocks_for_block_map = rounded_to_alignment!(super_block.block_count(), block_size);
+
+        let tag_bitmaps_bytes = unwrap_error_aidfs_convertible!(handler.read_bytes(block_size, blocks_for_tag_map * block_size));
+        let inode_bitmaps_bytes = unwrap_error_aidfs_convertible!(handler.read_bytes(block_size + blocks_for_tag_map * block_size, blocks_for_inode_map * block_size));
+        let data_bitmaps_bytes = unwrap_error_aidfs_convertible!(handler.read_bytes(block_size + (blocks_for_tag_map + blocks_for_inode_map) * block_size, blocks_for_block_map * block_size));
+
+        let tag_bitmap = BitMap::from_bytes(&tag_bitmaps_bytes);
+        let inode_bitmap = BitMap::from_bytes(&inode_bitmaps_bytes);
+        let block_bitmap = BitMap::from_bytes(&data_bitmaps_bytes);
+
+        let mut s = Self {
+            handler,
+            manager,
+            super_block,
+            tag_bitmap,
+            inode_bitmap,
+            block_bitmap,
+            block_size,
+            blocks_for_tag_map,
+            blocks_for_inode_map,
+            blocks_for_block_map,
+            tags: Vec::new(),
+            inodes: Vec::new(),
+        };
+
+        s.tags = s.load_tags()?;
+        s.inodes = s.load_inodes()?;
+
+        return Ok(s);
+    }
+
     /// Stores a new tag in the first available spot.
-    pub fn store_tag_first_free(&mut self, tag: TagBlock) -> Result<(), VoxFSError<E>> {
+    fn store_tag_first_free(&mut self, tag: TagBlock) -> Result<(), VoxFSError<E>> {
         let index = match self.tag_bitmap.find_next_0_index_up_to(self.super_block.tag_count() as usize) {
             Some(index) => index,
             None => return Err(VoxFSError::NoFreeInode),
@@ -143,7 +196,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
 
         unwrap_error_aidfs_convertible!(self.handler.write_bytes(
             &tag.to_bytes().to_vec(),
-            self.super_block.tag_start_address + (index as u64) * TagBlock::size()
+            self.super_block.tag_start_address() + (index as u64) * TagBlock::size()
         ));
 
         if !self.tag_bitmap.set_bit(index, true) {
@@ -247,7 +300,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                     None => return Err(VoxFSError::NotEnoughFreeDataBlocks),
                 };
 
-                let location = self.super_block.data_start_address + index * self.block_size;
+                let location = self.super_block.data_start_address() + index * self.block_size;
 
                 self.block_bitmap.set_bit(index as usize, true);
                 unwrap_error_aidfs_convertible!(self.handler.write_bytes(&indirect_tag.to_bytes_padded(self.block_size as usize), location));
@@ -262,7 +315,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                     None => {
                         self.tags[tag_self_index].set_indirect(location);
                         unwrap_error_aidfs_convertible!(self.handler.write_bytes(&self.tags[tag_self_index].to_bytes().to_vec(),
-                                self.super_block.tag_start_address + self.tags[tag_self_index].index() * TagBlock::size()
+                                self.super_block.tag_start_address() + self.tags[tag_self_index].index() * TagBlock::size()
                             ));
                     }
                 }
@@ -297,7 +350,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
 
             unwrap_error_aidfs_convertible!(self.handler.write_bytes(
                 &self.tags[tag_self_index].to_bytes().to_vec(),
-                self.super_block.tag_start_address
+                self.super_block.tag_start_address()
                     + self.tags[tag_self_index].index() * TagBlock::size()
             ));
         }
@@ -405,14 +458,14 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                     if contents_offset + self.block_size > contents.len() as u64 {
                         unwrap_error_aidfs_convertible!(self.handler.write_bytes(
                             &contents[contents_offset as usize..].to_vec(),
-                            self.super_block.data_start_address + i * self.block_size,
+                            self.super_block.data_start_address() + i * self.block_size,
                         ));
                     } else {
                         unwrap_error_aidfs_convertible!(self.handler.write_bytes(
                             &contents[contents_offset as usize
                                 ..(contents_offset + self.block_size) as usize]
                                 .to_vec(),
-                            self.super_block.data_start_address + i * self.block_size,
+                            self.super_block.data_start_address() + i * self.block_size,
                         ));
                     }
 
@@ -455,7 +508,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                     None => return Err(VoxFSError::NotEnoughFreeDataBlocks),
                 };
 
-                let address = self.super_block.data_start_address + block_index * self.block_size;
+                let address = self.super_block.data_start_address() + block_index * self.block_size;
                 let block = IndirectINode::new(
                     address_group
                         .iter()
@@ -515,7 +568,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
 
         unwrap_error_aidfs_convertible!(self.handler.write_bytes(
             &inode.to_bytes().to_vec(),
-            self.super_block.inode_start_address + (inode_index as u64) * INode::size()
+            self.super_block.inode_start_address() + (inode_index as u64) * INode::size()
         ));
 
         if !self.inode_bitmap.set_bit(inode_index, true) {
@@ -550,11 +603,11 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
 
         for extent in &inode.blocks() {
             for i in extent.start..=extent.end {
-                let addr = self.super_block.data_start_address + i * self.block_size;
+                let addr = self.super_block.data_start_address() + i * self.block_size;
                 let mut content = unwrap_error_aidfs_convertible!(self.handler.read_bytes(addr, self.block_size));
 
                 if self.block_size + (result_bytes.len() as u64) > num_bytes {
-                    let end_point = self.block_size - (result_bytes.len() as u64 % self.block_size);
+                    let end_point = num_bytes - result_bytes.len() as u64;
                     result_bytes.extend_from_slice(&content[..end_point as usize]);
                 } else {
                     result_bytes.append(&mut content);
@@ -575,13 +628,13 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         // Write the inodes bitmap
         unwrap_error_aidfs_convertible!(self.handler.write_bytes(
             &self.inode_bitmap.as_bytes(),
-            self.block_size + self.blocks_for_tag_map
+            self.block_size + self.blocks_for_tag_map * self.block_size
         )); // We start at blocksize because of the superblock then skip the tag map
 
         // Write the data bitmap
         unwrap_error_aidfs_convertible!(self.handler.write_bytes(
             &self.block_bitmap.as_bytes(),
-            self.block_size + self.blocks_for_tag_map + self.blocks_for_inode_map
+            self.block_size + (self.blocks_for_tag_map + self.blocks_for_inode_map) * self.block_size
         )); // We start at blocksize because of the superblock then skip the tag map and inode map
 
         return Ok(());
@@ -593,7 +646,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
 
         for i in 0..self.tag_bitmap.len() {
             if self.tag_bitmap.bit_at(i).unwrap() {
-                let location = self.super_block.tag_start_address + (i as u64) * TagBlock::size();
+                let location = self.super_block.tag_start_address() + (i as u64) * TagBlock::size();
 
                 tags.push(
                     match TagBlock::from_bytes(&unwrap_error_aidfs_convertible!(self
@@ -616,7 +669,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
 
         for (index, bit) in self.inode_bitmap.flatten_bool().iter().enumerate() {
             if *bit {
-                let address = self.super_block.inode_start_address + (index as u64) * INode::size();
+                let address = self.super_block.inode_start_address() + (index as u64) * INode::size();
 
                 let bytes = unwrap_error_aidfs_convertible!(self
                     .handler

@@ -21,11 +21,11 @@ pub struct SuperBlock {
     block_count: u64,
 
     /// The address at which the tags are contained.
-    pub tag_start_address: u64,
+    tag_start_address: u64,
     /// The address at which the inodes are contained.
-    pub inode_start_address: u64,
+    inode_start_address: u64,
     /// The address at which data blocks reside.
-    pub data_start_address: u64,
+    data_start_address: u64,
 
     checksum: u8,
     reserved: [u8; 3],
@@ -87,6 +87,44 @@ impl SuperBlock {
     /// The number of data blocks.
     pub fn block_count(&self) -> u64 {
         return self.block_count;
+    }
+
+    /// The block size
+    pub fn block_size(&self) -> u64 {
+        return self.block_size;
+    }
+
+    /// The address at which tags should be stored.
+    pub fn tag_start_address(&self) -> u64 {
+        return self.tag_start_address;
+    }
+
+    /// The address at which inodes should be stored.
+    pub fn inode_start_address(&self) -> u64 {
+        return self.inode_start_address;
+    }
+
+    /// The address at which data blocks should be stored.
+    pub fn data_start_address(&self) -> u64 {
+        return self.data_start_address;
+    }
+
+    /// Set the address at which tags should be stored.
+    pub fn set_tag_start_address(&mut self, tag_start_address: u64) {
+        self.tag_start_address = tag_start_address;
+        self.set_checksum();
+    }
+
+    /// Set the address at which inodes should be stored.
+    pub fn set_inode_start_address(&mut self, inode_start_address: u64) {
+        self.inode_start_address = inode_start_address;
+        self.set_checksum();
+    }
+
+    /// Set the address at which data blocks should be stored.
+    pub fn set_data_start_address(&mut self, data_start_address: u64) {
+        self.data_start_address = data_start_address;
+        self.set_checksum();
     }
 
     // Dead code since nothing should require this but for consistency it is provided.
