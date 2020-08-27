@@ -26,11 +26,13 @@ fn test_open_single_file() {
         .as_bytes()
         .to_vec();
 
-    let comp_inode = disk.create_new_file_first_free(
-        "test_file",
-        INodeFlags::new(true, true, true, false),
-        file_contents.clone(),
-    ).unwrap();
+    let comp_inode = disk
+        .create_new_file_first_free(
+            "test_file",
+            INodeFlags::new(true, true, true, false),
+            file_contents.clone(),
+        )
+        .unwrap();
 
     drop(disk);
 
@@ -74,11 +76,13 @@ fn test_open_single_large_file() {
         res
     };
 
-    let comp_inode = disk.create_new_file_first_free(
-        "test_file",
-        INodeFlags::new(true, true, true, false),
-        file_contents.clone(),
-    ).unwrap();
+    let comp_inode = disk
+        .create_new_file_first_free(
+            "test_file",
+            INodeFlags::new(true, true, true, false),
+            file_contents.clone(),
+        )
+        .unwrap();
 
     drop(disk);
 
@@ -119,11 +123,14 @@ fn test_open_multiple_small_files() {
     let mut comp_inodes = Vec::new();
 
     for i in 0..30 {
-        comp_inodes.push(disk.create_new_file_first_free(
-            &format!("test_file_{}", i),
-            INodeFlags::new(true, true, true, false),
-            file_contents.clone(),
-        ).unwrap());
+        comp_inodes.push(
+            disk.create_new_file_first_free(
+                &format!("test_file_{}", i),
+                INodeFlags::new(true, true, true, false),
+                file_contents.clone(),
+            )
+            .unwrap(),
+        );
     }
 
     drop(disk);
@@ -173,11 +180,14 @@ fn test_open_multiple_large_files() {
     let mut comp_inodes = Vec::new();
 
     for i in 0..6 {
-        comp_inodes.push(disk.create_new_file_first_free(
-            &format!("test_file_{}", i),
-            INodeFlags::new(true, true, true, false),
-            file_contents.clone(),
-        ).unwrap());
+        comp_inodes.push(
+            disk.create_new_file_first_free(
+                &format!("test_file_{}", i),
+                INodeFlags::new(true, true, true, false),
+                file_contents.clone(),
+            )
+            .unwrap(),
+        );
     }
 
     drop(disk);
@@ -221,11 +231,14 @@ fn test_open_multiple_small_files_tagged() {
     let mut comp_inodes = Vec::new();
 
     for i in 0..30 {
-        comp_inodes.push(disk.create_new_file_first_free(
-            &format!("test_file_{}", i),
-            INodeFlags::new(true, true, true, false),
-            file_contents.clone(),
-        ).unwrap());
+        comp_inodes.push(
+            disk.create_new_file_first_free(
+                &format!("test_file_{}", i),
+                INodeFlags::new(true, true, true, false),
+                file_contents.clone(),
+            )
+            .unwrap(),
+        );
 
         disk.apply_tag(0, &comp_inodes[i]).unwrap();
     }

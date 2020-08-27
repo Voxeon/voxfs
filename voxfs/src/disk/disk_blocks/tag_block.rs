@@ -64,7 +64,15 @@ impl TagBlock {
         number_of_pointers: u16,
         members: [u64; 12],
     ) -> Self {
-        return Self::new_custom_creation_time(index, name_str, flags, creation_time.timestamp_nanos() as u64, indirect, number_of_pointers, members);
+        return Self::new_custom_creation_time(
+            index,
+            name_str,
+            flags,
+            creation_time.timestamp_nanos() as u64,
+            indirect,
+            number_of_pointers,
+            members,
+        );
     }
 
     fn new_custom_creation_time(

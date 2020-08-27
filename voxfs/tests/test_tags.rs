@@ -223,7 +223,7 @@ fn test_tags_indirects() {
                 INodeFlags::new(true, true, true, false),
                 file_contents.clone(),
             )
-                .unwrap(),
+            .unwrap(),
         );
 
         disk.apply_tag(0, &comp_nodes[i]).unwrap();
@@ -250,7 +250,9 @@ fn test_custom_tag() {
     let mut disk =
         Disk::make_new_filesystem_with_root(&mut handler, &mut manager, root_tag.clone()).unwrap();
 
-    let custom_tag = disk.create_new_tag("file_1", TagFlags::new(true, true)).unwrap();
+    let custom_tag = disk
+        .create_new_tag("file_1", TagFlags::new(true, true))
+        .unwrap();
 
     assert_eq!(custom_tag.index(), 1);
 
@@ -266,7 +268,7 @@ fn test_custom_tag() {
             INodeFlags::new(true, true, true, false),
             file_contents.clone(),
         )
-            .unwrap(),
+        .unwrap(),
     );
 
     let mut ultra_large_file = vec![0u8; 4096 * 6]; // We want to take up more than 5 blocks so an indirect inode is required.
@@ -278,7 +280,7 @@ fn test_custom_tag() {
             INodeFlags::new(true, true, true, false),
             ultra_large_file,
         )
-            .unwrap(),
+        .unwrap(),
     );
 
     let file_contents_2 = "Different file contents for this file!".as_bytes().to_vec();
@@ -289,7 +291,7 @@ fn test_custom_tag() {
             INodeFlags::new(true, true, true, false),
             file_contents_2.clone(),
         )
-            .unwrap(),
+        .unwrap(),
     );
 
     disk.apply_tag(custom_tag.index(), &comp_nodes[0]).unwrap();
