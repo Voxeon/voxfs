@@ -26,5 +26,7 @@ pub enum VoxFSError<E> {
     FailedToAppendToNewTag,
     InternalIndexLocationError,
     FailedIndirectTagAppend,
+    FailedToFreeTag,
+    FailedToFreeBlock,
     DiskError(E),
 }

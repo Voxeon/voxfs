@@ -11,7 +11,7 @@ const DEFAULT_BLOCK_SIZE: u64 = 4_096; // In bytes. 4KiB.
 
 // TODO List
 // TODO: 1. Support deleting files
-// TODO: 2. Support deleting tags
+// - TODO: 2. Support deleting tags
 // TODO: 3. Support removing file from a tag
 // TODO: 4. Support appending to files.
 // TODO: 5. Support overwriting files.
@@ -204,6 +204,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         return Ok(s);
     }
 
+    /// Creates a new tag in the first available slot.
     pub fn create_new_tag(
         &mut self,
         name: &str,
@@ -224,6 +225,62 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         self.tags.push(tag);
 
         return Ok(tag);
+    }
+
+    /// Deletes a tag
+    pub fn delete_tag(&mut self, index: u64) -> Result<(), VoxFSError<E>> {
+        let mut local_index = None;
+        let mut local_tag = None;
+
+        for (i, tag) in self.tags.iter().enumerate() {
+            if tag.index() == index {
+                local_index = Some(i);
+                local_tag = Some(tag.clone());
+                break;
+            }
+        }
+
+        if local_index.is_none() {
+            return Err(VoxFSError::CouldNotFindTag);
+        }
+
+        let local_index = local_index.unwrap();
+        let local_tag = local_tag.unwrap();
+
+        let mut data_block_indices: Vec<u64> = Vec::new(); // index of data block
+        let mut current_indirect = local_tag.indirect_pointer();
+
+        while current_indirect.is_some() {
+            let address= current_indirect.unwrap();
+            let index = (address - self.super_block.data_start_address())/self.block_size;
+            let bytes = unwrap_error_aidfs_convertible!(self.handler.read_bytes(address, self.block_size));
+            let block = match IndirectTagBlock::from_bytes(&bytes) {
+                Some(b) => b,
+                None => return Err(VoxFSError::CorruptedIndirectTag),
+            };
+
+            current_indirect = block.next();
+            data_block_indices.push(index);
+        }
+
+
+        // Mark the space as free
+
+        for index in data_block_indices {
+            if !self.block_bitmap.set_bit(index as usize, false) {
+                return Err(VoxFSError::FailedToFreeBlock);
+            }
+        }
+
+        if !self.tag_bitmap.set_bit(local_tag.index() as usize, false) {
+            return Err(VoxFSError::FailedToFreeTag);
+        }
+
+        self.tags.remove(local_index);
+
+        self.write_bitmaps()?;
+
+        return Ok(());
     }
 
     /// List the tags stored on the disk.
