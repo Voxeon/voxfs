@@ -12,7 +12,7 @@ const DEFAULT_BLOCK_SIZE: u64 = 4_096; // In bytes. 4KiB.
 // TODO List
 // TODO: 1. Support deleting files
 // - TODO: 2. Support deleting tags
-// TODO: 3. Support removing file from a tag
+// - TODO: 3. Support removing file from a tag
 // TODO: 4. Support appending to files.
 // TODO: 5. Support overwriting files.
 
