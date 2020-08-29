@@ -367,7 +367,7 @@ fn test_remove_tag() {
     disk.apply_tag(custom_tag.index(), &comp_nodes[1]).unwrap();
     disk.apply_tag(custom_tag.index(), &comp_nodes[2]).unwrap();
 
-    disk.remove_tag(1, &comp_nodes[0]).unwrap();
+    disk.remove_tag_from_inode(1, &comp_nodes[0]).unwrap();
 
     assert_eq!(disk.list_tags().len(), 2);
     let inodes = disk.list_tag_nodes(1).unwrap();
@@ -418,8 +418,8 @@ fn test_remove_from_indirect_tag() {
         disk.apply_tag(custom_tag.index(), &comp_nodes[i]).unwrap();
     }
 
-    //disk.remove_tag(custom_tag.index(), &comp_nodes.remove(0)).unwrap();
-    disk.remove_tag(custom_tag.index(), &comp_nodes.pop().unwrap())
+    disk.remove_tag_from_inode(custom_tag.index(), &comp_nodes.remove(0)).unwrap();
+    disk.remove_tag_from_inode(custom_tag.index(), &comp_nodes.pop().unwrap())
         .unwrap();
 
     assert_eq!(comp_nodes, disk.list_tag_nodes(custom_tag.index()).unwrap());
@@ -472,7 +472,7 @@ fn test_remove_from_large_tag() {
 
     // We will remove all the middle block.
     for _ in 0..509 {
-        disk.remove_tag(custom_tag.index(), &comp_nodes.remove(12));
+        disk.remove_tag_from_inode(custom_tag.index(), &comp_nodes.remove(12));
     }
 
     assert_eq!(disk.available_data_blocks(), 350);
@@ -492,7 +492,6 @@ fn test_delete_tag() {
         0x0,
         0x0,
         [0u64; 12],
-
     );
 
     let mut disk =

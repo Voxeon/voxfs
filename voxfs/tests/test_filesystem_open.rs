@@ -296,7 +296,7 @@ fn test_open_multiple_small_files_tag_removed() {
     }
 
     for _ in 0..510 {
-        disk.remove_tag(0, &comp_inodes.remove(12)).unwrap();
+        disk.remove_tag_from_inode(0, &comp_inodes.remove(12)).unwrap();
     }
 
     drop(disk);

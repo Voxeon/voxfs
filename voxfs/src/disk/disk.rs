@@ -260,7 +260,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
 
         while current_indirect.is_some() {
             let address = current_indirect.unwrap();
-            let index = self.address_to_index(address);
+            let index = self.address_to_data_index(address);
             let bytes =
                 unwrap_error_aidfs_convertible!(self.handler.read_bytes(address, self.block_size));
             let block = match IndirectTagBlock::from_bytes(&bytes) {
@@ -450,12 +450,12 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
     }
 
     /// Remove a tag from an inode, automatically deleting an empty indirect tag block.
-    pub fn remove_tag(&mut self, tag_index: u64, inode: &INode) -> Result<(), VoxFSError<E>> {
-        return self.remove_tag_optional_prune(tag_index, inode, true);
+    pub fn remove_tag_from_inode(&mut self, tag_index: u64, inode: &INode) -> Result<(), VoxFSError<E>> {
+        return self.remove_tag_from_inode_optional_prune(tag_index, inode, true);
     }
 
     /// Remove a tag from an inode, if prune is true an empty indirect tag block is deleted.
-    pub fn remove_tag_optional_prune(
+    pub fn remove_tag_from_inode_optional_prune(
         &mut self,
         tag_index: u64,
         inode: &INode,
@@ -516,7 +516,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                 if found {
                     if prune && block.number_of_members() == 0 {
                         // Here we remove any reference to this block, if this block points to another block we just adjust what points to the block to point to that block.
-                        let index = self.address_to_index(address);
+                        let index = self.address_to_data_index(address);
 
                         match parent {
                             Some(ref p) => {
@@ -1036,7 +1036,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
 
     /// Converts an address into a data block index, panics if not possible.
     #[inline]
-    fn address_to_index(&self, address: u64) -> u64 {
+    fn address_to_data_index(&self, address: u64) -> u64 {
         assert!(
             address > self.super_block.data_start_address(),
             "Invalid address conversion requested."
