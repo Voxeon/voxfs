@@ -492,6 +492,7 @@ fn test_delete_tag() {
         0x0,
         0x0,
         [0u64; 12],
+
     );
 
     let mut disk =
