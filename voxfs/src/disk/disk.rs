@@ -24,9 +24,9 @@ pub struct Disk<'a, 'b, E: VoxFSErrorConvertible> {
 
     tag_bitmap: BitMap,
     inode_bitmap: BitMap,
-    block_bitmap: BitMap,
+    pub block_bitmap: BitMap,
 
-    block_size: u64,
+    pub block_size: u64,
 
     blocks_for_tag_map: u64,
     blocks_for_inode_map: u64,
@@ -146,6 +146,14 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         return Ok(new_disk);
     }
 
+    /// Returns the number of available data blocks
+    pub fn available_data_blocks(&self) -> u64 {
+        return self
+            .block_bitmap
+            .count_zeros_up_to(self.super_block.block_count() as usize)
+            .unwrap_or(0) as u64;
+    }
+
     /// Opens a disk, loading the required details
     pub fn open_disk(
         handler: &'a mut dyn DiskHandler<E>,
@@ -251,9 +259,10 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         let mut current_indirect = local_tag.indirect_pointer();
 
         while current_indirect.is_some() {
-            let address= current_indirect.unwrap();
-            let index = (address - self.super_block.data_start_address())/self.block_size;
-            let bytes = unwrap_error_aidfs_convertible!(self.handler.read_bytes(address, self.block_size));
+            let address = current_indirect.unwrap();
+            let index = self.address_to_index(address);
+            let bytes =
+                unwrap_error_aidfs_convertible!(self.handler.read_bytes(address, self.block_size));
             let block = match IndirectTagBlock::from_bytes(&bytes) {
                 Some(b) => b,
                 None => return Err(VoxFSError::CorruptedIndirectTag),
@@ -262,7 +271,6 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
             current_indirect = block.next();
             data_block_indices.push(index);
         }
-
 
         // Mark the space as free
 
@@ -436,6 +444,122 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                 self.super_block.tag_start_address()
                     + self.tags[tag_self_index].index() * TagBlock::size()
             ));
+        }
+
+        return Ok(());
+    }
+
+    /// Remove a tag from an inode, automatically deleting an empty indirect tag block.
+    pub fn remove_tag(&mut self, tag_index: u64, inode: &INode) -> Result<(), VoxFSError<E>> {
+        return self.remove_tag_optional_prune(tag_index, inode, true);
+    }
+
+    /// Remove a tag from an inode, if prune is true an empty indirect tag block is deleted.
+    pub fn remove_tag_optional_prune(
+        &mut self,
+        tag_index: u64,
+        inode: &INode,
+        prune: bool,
+    ) -> Result<(), VoxFSError<E>> {
+        let mut tag = None;
+        let mut tag_local_index = None;
+
+        for (i, t) in self.tags.iter().enumerate() {
+            if t.index() == tag_index {
+                tag = Some(*t);
+                tag_local_index = Some(i);
+            }
+        }
+
+        if tag.is_none() {
+            return Err(VoxFSError::CouldNotFindTag);
+        }
+
+        let mut tag = tag.unwrap();
+        let tag_local_index = tag_local_index.unwrap();
+        let mut found = false;
+        let members = tag.members();
+
+        for (i, node_index) in members.iter().enumerate() {
+            if *node_index == inode.index() {
+                found = true;
+                self.tags[tag_local_index].remove_member_at(i as u16);
+                break;
+            }
+        }
+
+        if !found {
+            let mut next = tag.indirect_pointer();
+            let mut parent: Option<IndirectTagBlock> = None;
+            let mut parent_address = None;
+
+            while !found && next.is_some() {
+                let address = next.unwrap();
+                let bytes = unwrap_error_aidfs_convertible!(self
+                    .handler
+                    .read_bytes(address, self.block_size));
+                let mut block = match IndirectTagBlock::from_bytes(&bytes) {
+                    Some(b) => b,
+                    None => return Err(VoxFSError::CorruptedIndirectTag),
+                };
+
+                let members = block.members();
+
+                for (i, member) in members.iter().enumerate() {
+                    if *member == inode.index() {
+                        block.remove_member_at(i as u16);
+                        found = true;
+                        break;
+                    }
+                }
+
+                if found {
+                    if prune && block.number_of_members() == 0 {
+                        // Here we remove any reference to this block, if this block points to another block we just adjust what points to the block to point to that block.
+                        let index = self.address_to_index(address);
+
+                        match parent {
+                            Some(ref p) => {
+                                let mut cp = p.clone();
+                                cp.set_next_optional(block.next());
+                                self.block_bitmap.set_bit(index as usize, false);
+
+                                self.write_bitmaps()?;
+                                unwrap_error_aidfs_convertible!(self.handler.write_bytes(
+                                    &cp.to_bytes_padded(self.block_size as usize),
+                                    parent_address.unwrap()
+                                ));
+                            }
+                            None => {
+                                self.tags[tag_local_index].set_indirect_optional(block.next());
+                                self.block_bitmap.set_bit(index as usize, false);
+
+                                self.write_bitmaps()?;
+                                unwrap_error_aidfs_convertible!(self.handler.write_bytes(
+                                    &self.tags[tag_local_index].to_bytes().to_vec(),
+                                    self.super_block.tag_start_address()
+                                        + self.tags[tag_local_index].index() * TagBlock::size()
+                                ));
+
+                                //unwrap_error_aidfs_convertible!(self.handler.write_bytes(&tag.to_bytes().to_vec(), self.super_block.tag_start_address() + tag.index() * TagBlock::size()));
+                            }
+                        }
+                    } else {
+                        unwrap_error_aidfs_convertible!(self.handler.write_bytes(
+                            &block.to_bytes_padded(self.block_size as usize),
+                            address
+                        ));
+                    }
+                } else {
+                    parent_address = next;
+                    next = block.next();
+                    parent = Some(block);
+                }
+            }
+
+            if !found {
+                return Err(VoxFSError::TagNotAppliedToINode);
+            }
         }
 
         return Ok(());
@@ -908,5 +1032,16 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
             Some(v) => Some(v as u64),
             None => None,
         };
+    }
+
+    /// Converts an address into a data block index, panics if not possible.
+    #[inline]
+    fn address_to_index(&self, address: u64) -> u64 {
+        assert!(
+            address > self.super_block.data_start_address(),
+            "Invalid address conversion requested."
+        );
+
+        return (address - self.super_block.data_start_address()) / self.block_size;
     }
 }

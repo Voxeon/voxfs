@@ -194,7 +194,7 @@ impl BitMap {
 
         if chunk_index != 0 {
             for i in 0..chunk_index {
-                if !self.bit_at(chunks + i).unwrap() {
+                if !self.bit_at(chunks * 64 + i).unwrap() {
                     sum += 1;
                 }
             }
@@ -418,5 +418,34 @@ mod tests {
         map.set_all(true);
 
         assert!(map.find_next_0_index().is_none());
+    }
+
+    #[test]
+    fn test_count_zeros_up_to() {
+        let mut map = BitMap::new(1024);
+
+        map.set_all(true);
+
+        assert_eq!(map.count_zeros_up_to(512).unwrap(), 0);
+    }
+
+    #[test]
+    fn test_count_zeros_up_to_2() {
+        let mut map = BitMap::new(1024);
+
+        map.set_all(true);
+        map.set_bit(443, false);
+
+        assert_eq!(map.count_zeros_up_to(512).unwrap(), 1);
+    }
+
+    #[test]
+    fn test_count_zeros_up_to_3() {
+        let mut map = BitMap::new(1024);
+
+        map.set_all(false);
+        map.set_bit(443, true);
+
+        assert_eq!(map.count_zeros_up_to(512).unwrap(), 511);
     }
 }

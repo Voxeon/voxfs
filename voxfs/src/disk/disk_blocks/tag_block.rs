@@ -122,14 +122,21 @@ impl TagBlock {
         }
     }
 
-    pub fn set_index(&mut self, index: u64) {
-        self.index = index;
-    }
-
     pub fn set_indirect(&mut self, indirect: u64) {
         self.indirect = indirect;
 
         self.set_checksum();
+    }
+
+    pub fn set_indirect_optional(&mut self, indirect: Option<u64>) {
+        match indirect {
+            Some(i) => self.set_indirect(i),
+            None => self.set_indirect(0),
+        }
+    }
+
+    pub fn set_index(&mut self, index: u64) {
+        self.index = index;
     }
 
     pub fn members(&self) -> [u64; 12] {
@@ -140,14 +147,39 @@ impl TagBlock {
         return self.number_of_pointers;
     }
 
-    pub fn append_member(&mut self, member: u64) {
+    pub fn append_member(&mut self, member: u64) -> bool {
+        if self.number_of_pointers == Self::MAXIMUM_LOCAL_MEMBERS {
+            return false;
+        }
+
         self.members[self.number_of_pointers as usize] = member;
         self.number_of_pointers += 1;
         self.set_checksum();
+
+        return true;
     }
 
     pub fn member_at(&self, index: u16) -> u64 {
         return self.members[index as usize];
+    }
+
+    pub fn remove_member_at(&mut self, index: u16) -> bool {
+        if self.number_of_pointers == 0 {
+            return false;
+        } else if index < self.number_of_pointers - 1 {
+            for i in index..self.number_of_pointers - 1 {
+                self.members[i as usize] = self.members[i as usize + 1];
+            }
+        } else if index != self.number_of_pointers - 1 {
+            return false;
+        }
+
+        self.members[self.number_of_pointers as usize - 1] = 0;
+        self.number_of_pointers -= 1;
+
+        self.set_checksum();
+
+        return true;
     }
 
     pub fn index(&self) -> u64 {
@@ -404,6 +436,13 @@ impl IndirectTagBlock {
         self.set_checksum();
     }
 
+    pub fn set_next_optional(&mut self, next: Option<u64>) {
+        match next {
+            Some(i) => self.set_next(i),
+            None => self.set_next(0),
+        }
+    }
+
     pub fn number_of_members(&self) -> u16 {
         return self.number_of_members;
     }
@@ -419,6 +458,22 @@ impl IndirectTagBlock {
 
         self.members.push(member);
         self.number_of_members += 1;
+
+        self.set_checksum();
+
+        return true;
+    }
+
+    pub fn remove_member_at(&mut self, index: u16) -> bool {
+        if self.number_of_members == 0 {
+            return false;
+        } else if index >= self.number_of_members {
+            return false;
+        } else {
+            self.members.remove(index as usize);
+        }
+
+        self.number_of_members -= 1;
 
         self.set_checksum();
 
@@ -556,6 +611,7 @@ impl core::fmt::Debug for IndirectTagBlock {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec;
 
     mod tag_flags {
         use super::*;
@@ -839,6 +895,156 @@ mod tests {
             assert!(comp.perform_checksum());
             assert_eq!(comp, block);
         }
+
+        #[test]
+        fn test_append_first() {
+            let members = [0u64; 12];
+            let mut comp_members = [0u64; 12];
+            comp_members[0] = 3;
+
+            let mut block = TagBlock::new_custom_creation_time(
+                0,
+                "",
+                TagFlags::new(false, false),
+                0,
+                0,
+                0,
+                members,
+            );
+            assert!(block.append_member(3));
+
+            assert_eq!(block.number_of_pointers, 1);
+            assert_eq!(block.members, comp_members);
+        }
+
+        #[test]
+        fn test_append_fail() {
+            let members = [3u64; 12];
+            let mut comp_members = [3u64; 12];
+
+            let mut block = TagBlock::new_custom_creation_time(
+                0,
+                "",
+                TagFlags::new(false, false),
+                0,
+                0,
+                12,
+                members,
+            );
+            assert!(!block.append_member(2));
+
+            assert_eq!(block.number_of_pointers, 12);
+            assert_eq!(block.members, comp_members);
+        }
+
+        #[test]
+        fn test_remove_member_at_first() {
+            let mut members = [0u64; 12];
+            members[0] = 0x33;
+            let comp_members = [0u64; 12];
+
+            let mut block = TagBlock::new_custom_creation_time(
+                0,
+                "",
+                TagFlags::new(false, false),
+                0,
+                0,
+                1,
+                members,
+            );
+
+            assert_eq!(block.members, members);
+            assert_eq!(block.number_of_pointers, 1);
+
+            assert!(block.remove_member_at(0));
+            assert_eq!(block.members, comp_members);
+            assert_eq!(block.number_of_pointers, 0);
+        }
+
+        #[test]
+        fn test_remove_member_at_append() {
+            let mut members = [0u64; 12];
+            let comp_members = [0u64; 12];
+
+            let mut block = TagBlock::new_custom_creation_time(
+                0,
+                "",
+                TagFlags::new(false, false),
+                0,
+                0,
+                0,
+                members,
+            );
+
+            assert_eq!(block.members, members);
+            assert_eq!(block.number_of_pointers, 0);
+
+            block.append_member(23);
+            assert!(block.remove_member_at(0));
+
+            assert_eq!(block.members, comp_members);
+            assert_eq!(block.number_of_pointers, 0);
+        }
+
+        #[test]
+        fn test_remove_member_at_fail() {
+            let members = [0u64; 12];
+            let mut comp_members = [0u64; 12];
+            comp_members[0] = 3;
+
+            let mut block = TagBlock::new_custom_creation_time(
+                0,
+                "",
+                TagFlags::new(false, false),
+                0,
+                0,
+                0,
+                members,
+            );
+
+            assert_eq!(block.members, members);
+            assert_eq!(block.number_of_pointers, 0);
+
+            assert!(!block.remove_member_at(0));
+            block.append_member(3);
+            assert!(!block.remove_member_at(1));
+
+            assert_eq!(block.members, comp_members);
+            assert_eq!(block.number_of_pointers, 1);
+        }
+
+        #[test]
+        fn test_remove_member_at_depth() {
+            let mut members = [0u64; 12];
+            members[0] = 4;
+            members[1] = 2;
+            members[2] = 3;
+            members[3] = 2;
+            members[4] = 1;
+            let mut comp_members = [0u64; 12];
+            comp_members[0] = 3;
+            comp_members[1] = 1;
+
+            let mut block = TagBlock::new_custom_creation_time(
+                0,
+                "",
+                TagFlags::new(false, false),
+                0,
+                0,
+                5,
+                members,
+            );
+
+            assert_eq!(block.members, members);
+            assert_eq!(block.number_of_pointers, 5);
+
+            assert!(block.remove_member_at(1));
+            assert!(block.remove_member_at(0));
+            assert!(block.remove_member_at(1));
+
+            assert_eq!(block.members, comp_members);
+            assert_eq!(block.number_of_pointers, 2);
+        }
     }
 
     mod indirect_tag_block {
@@ -991,6 +1197,88 @@ mod tests {
             res.maximum_members = 509;
 
             assert_eq!(block, res,);
+        }
+
+        #[test]
+        fn test_append_first() {
+            let members = vec![0u64; 12];
+            let mut comp_members = vec![0u64; 13];
+            comp_members[12] = 3;
+
+            let mut block = IndirectTagBlock::new(0, members, 0, 4096);
+            assert!(block.append_member(3));
+
+            assert_eq!(block.number_of_members, 13);
+            assert_eq!(block.members, comp_members);
+        }
+
+        #[test]
+        fn test_append_fail() {
+            let members = Vec::new();
+            let mut comp_members = Vec::new();
+
+            let mut block = IndirectTagBlock::new(0, members, 0, 4096);
+
+            for i in 0..block.maximum_members {
+                assert!(block.append_member(i));
+                comp_members.push(i);
+            }
+
+            assert!(!block.append_member(3));
+
+            assert_eq!(block.number_of_members, block.maximum_members as u16);
+            assert_eq!(block.members, comp_members);
+        }
+
+        #[test]
+        fn test_remove_member_at_first() {
+            let mut members = vec![0u64; 12];
+            members[0] = 0x33;
+            let comp_members = vec![0u64; 11];
+
+            let mut block = IndirectTagBlock::new(0, members.clone(), 0, 4096);
+
+            assert_eq!(block.members, members);
+            assert_eq!(block.number_of_members, 12);
+
+            assert!(block.remove_member_at(0));
+
+            assert_eq!(block.members, comp_members);
+            assert_eq!(block.number_of_members, 11);
+        }
+
+        #[test]
+        fn test_remove_member_at_append() {
+            let members = Vec::new();
+            let comp_members = Vec::new();
+
+            let mut block = IndirectTagBlock::new(0, members.clone(), 0, 4096);
+
+            assert_eq!(block.members, members);
+            assert_eq!(block.number_of_members, 0);
+
+            assert!(block.append_member(23));
+            assert!(block.remove_member_at(0));
+
+            assert_eq!(block.members, comp_members);
+            assert_eq!(block.number_of_members, 0);
+        }
+
+        #[test]
+        fn test_remove_member_at_fail() {
+            let members = Vec::new();
+            let comp_members: Vec<u64> = vec![23];
+
+            let mut block = IndirectTagBlock::new(0, members.clone(), 0, 4096);
+
+            assert_eq!(block.members, members);
+            assert_eq!(block.number_of_members, 0);
+
+            assert!(block.append_member(23));
+            assert!(!block.remove_member_at(1));
+
+            assert_eq!(block.members, comp_members);
+            assert_eq!(block.number_of_members, 1);
         }
     }
 }
