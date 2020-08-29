@@ -450,7 +450,11 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
     }
 
     /// Remove a tag from an inode, automatically deleting an empty indirect tag block.
-    pub fn remove_tag_from_inode(&mut self, tag_index: u64, inode: &INode) -> Result<(), VoxFSError<E>> {
+    pub fn remove_tag_from_inode(
+        &mut self,
+        tag_index: u64,
+        inode: &INode,
+    ) -> Result<(), VoxFSError<E>> {
         return self.remove_tag_from_inode_optional_prune(tag_index, inode, true);
     }
 
@@ -475,7 +479,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
             return Err(VoxFSError::CouldNotFindTag);
         }
 
-        let mut tag = tag.unwrap();
+        let tag = tag.unwrap();
         let tag_local_index = tag_local_index.unwrap();
         let mut found = false;
         let members = tag.members();

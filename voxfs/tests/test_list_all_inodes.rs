@@ -1,5 +1,5 @@
 extern crate voxfs;
-use voxfs::{Disk, INodeFlags, OSManager, TagBlock, TagFlags};
+use voxfs::{Disk, INodeFlags};
 
 mod common;
 use common::*;
@@ -9,8 +9,7 @@ fn test_list_all_inodes() {
     let mut handler = Handler::new(4096 * 30); // Disk size of 120 KiB
     let mut manager = Manager::new();
 
-    let mut disk =
-        Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
+    let mut disk = Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
 
     let file_contents = "The file contents are testing, 1234, ok so this should be one block!"
         .as_bytes()
@@ -60,8 +59,7 @@ fn test_list_all_inodes_30() {
     let mut handler = Handler::new(4096 * 300); // Disk size of 1200 KiB
     let mut manager = Manager::new();
 
-    let mut disk =
-        Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
+    let mut disk = Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
 
     let file_contents = "The file contents are testing, 1234, ok so this should be one block!"
         .as_bytes()
@@ -90,8 +88,7 @@ fn test_list_all_inodes_300() {
     let mut handler = Handler::new(4096 * 1000); // Disk size of 4000 KiB
     let mut manager = Manager::new();
 
-    let mut disk =
-        Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
+    let mut disk = Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
 
     let file_contents = "The file contents are testing, 1234, ok so this should be one block!"
         .as_bytes()
@@ -106,7 +103,7 @@ fn test_list_all_inodes_300() {
                 INodeFlags::new(true, true, true, false),
                 file_contents.clone(),
             )
-                .unwrap(),
+            .unwrap(),
         );
     }
 

@@ -1,5 +1,5 @@
 extern crate voxfs;
-use voxfs::{Disk, INodeFlags, OSManager, TagBlock, TagFlags};
+use voxfs::{Disk, INodeFlags};
 
 mod common;
 use common::*;
@@ -9,8 +9,7 @@ fn test_read_small_file() {
     let mut handler = Handler::new(4096 * 30); // Disk size of 120 KiB
     let mut manager = Manager::new();
 
-    let mut disk =
-        Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
+    let mut disk = Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
 
     let file_contents =
         b"The file contents are testing, 1234, ok so this should be one block!".to_vec();
@@ -33,8 +32,7 @@ fn test_read_large_file() {
     let mut handler = Handler::new(4096 * 30); // Disk size of 120 KiB
     let mut manager = Manager::new();
 
-    let mut disk =
-        Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
+    let mut disk = Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
 
     let mut file_contents = Vec::new();
 

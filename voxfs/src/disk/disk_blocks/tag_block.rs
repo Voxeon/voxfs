@@ -920,7 +920,7 @@ mod tests {
         #[test]
         fn test_append_fail() {
             let members = [3u64; 12];
-            let mut comp_members = [3u64; 12];
+            let comp_members = [3u64; 12];
 
             let mut block = TagBlock::new_custom_creation_time(
                 0,
@@ -963,7 +963,7 @@ mod tests {
 
         #[test]
         fn test_remove_member_at_append() {
-            let mut members = [0u64; 12];
+            let members = [0u64; 12];
             let comp_members = [0u64; 12];
 
             let mut block = TagBlock::new_custom_creation_time(

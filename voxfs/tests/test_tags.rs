@@ -1,5 +1,5 @@
 extern crate voxfs;
-use voxfs::{Disk, INodeFlags, OSManager, TagBlock, TagFlags, VoxFSError};
+use voxfs::{Disk, INodeFlags, TagFlags, VoxFSError};
 
 mod common;
 use common::*;
@@ -9,8 +9,7 @@ fn test_tags() {
     let mut handler = Handler::new(4096 * 30); // Disk size of 120 KiB
     let mut manager = Manager::new();
 
-    let mut disk =
-        Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
+    let mut disk = Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
 
     let file_contents = "The file contents are testing, 1234, ok so this should be one block!"
         .as_bytes()
@@ -62,8 +61,7 @@ fn test_tags_12() {
     let mut handler = Handler::new(4096 * 30); // Disk size of 120 KiB
     let mut manager = Manager::new();
 
-    let mut disk =
-        Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
+    let mut disk = Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
 
     let file_contents = "The file contents are testing, 1234, ok so this should be one block!"
         .as_bytes()
@@ -92,8 +90,7 @@ fn test_tags_duplicate() {
     let mut handler = Handler::new(4096 * 30); // Disk size of 120 KiB
     let mut manager = Manager::new();
 
-    let mut disk =
-        Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
+    let mut disk = Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
 
     let file_contents = "The file contents are testing, 1234, ok so this should be one block!"
         .as_bytes()
@@ -127,8 +124,7 @@ fn test_tags_indirect() {
     let mut handler = Handler::new(4096 * 30); // Disk size of 120 KiB
     let mut manager = Manager::new();
 
-    let mut disk =
-        Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
+    let mut disk = Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
 
     let file_contents = "The file contents are testing, 1234, ok so this should be one block!"
         .as_bytes()
@@ -157,8 +153,7 @@ fn test_tags_indirects() {
     let mut handler = Handler::new(4096 * 1000); // Disk size of 120 KiB
     let mut manager = Manager::new();
 
-    let mut disk =
-        Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
+    let mut disk = Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
 
     let file_contents = "The file contents are testing, 1234, ok so this should be one block!"
         .as_bytes()
@@ -187,8 +182,7 @@ fn test_custom_tag() {
     let mut handler = Handler::new(4096 * 30); // Disk size of 120 KiB
     let mut manager = Manager::new();
 
-    let mut disk =
-        Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
+    let mut disk = Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
 
     let custom_tag = disk
         .create_new_tag("file_1", TagFlags::new(true, true))
@@ -246,8 +240,7 @@ fn test_remove_tag() {
     let mut handler = Handler::new(4096 * 30); // Disk size of 120 KiB
     let mut manager = Manager::new();
 
-    let mut disk =
-        Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
+    let mut disk = Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
 
     let custom_tag = disk
         .create_new_tag("file_1", TagFlags::new(true, true))
@@ -310,8 +303,7 @@ fn test_remove_from_indirect_tag() {
     let mut handler = Handler::new(4096 * 60); // Disk size of 120 KiB
     let mut manager = Manager::new();
 
-    let mut disk =
-        Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
+    let mut disk = Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
 
     let custom_tag = disk
         .create_new_tag("file_1", TagFlags::new(true, true))
@@ -338,7 +330,8 @@ fn test_remove_from_indirect_tag() {
         disk.apply_tag(custom_tag.index(), &comp_nodes[i]).unwrap();
     }
 
-    disk.remove_tag_from_inode(custom_tag.index(), &comp_nodes.remove(0)).unwrap();
+    disk.remove_tag_from_inode(custom_tag.index(), &comp_nodes.remove(0))
+        .unwrap();
     disk.remove_tag_from_inode(custom_tag.index(), &comp_nodes.pop().unwrap())
         .unwrap();
 
@@ -350,8 +343,7 @@ fn test_remove_from_large_tag() {
     let mut handler = Handler::new(4096 * 1000); // Disk size of 120 KiB
     let mut manager = Manager::new();
 
-    let mut disk =
-        Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
+    let mut disk = Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
 
     let custom_tag = disk
         .create_new_tag("file_1", TagFlags::new(true, true))
@@ -382,7 +374,8 @@ fn test_remove_from_large_tag() {
 
     // We will remove all the middle block.
     for _ in 0..509 {
-        disk.remove_tag_from_inode(custom_tag.index(), &comp_nodes.remove(12));
+        disk.remove_tag_from_inode(custom_tag.index(), &comp_nodes.remove(12))
+            .unwrap();
     }
 
     assert_eq!(disk.available_data_blocks(), 350);
@@ -394,8 +387,7 @@ fn test_delete_tag() {
     let mut handler = Handler::new(4096 * 30); // Disk size of 120 KiB
     let mut manager = Manager::new();
 
-    let mut disk =
-        Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
+    let mut disk = Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
 
     let custom_tag = disk
         .create_new_tag("file_1", TagFlags::new(true, true))
@@ -461,8 +453,7 @@ fn test_delete_large_tag() {
     let mut handler = Handler::new(4096 * 60); // Disk size of 120 KiB
     let mut manager = Manager::new();
 
-    let mut disk =
-        Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
+    let mut disk = Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
 
     let custom_tag = disk
         .create_new_tag("file_1", TagFlags::new(true, true))
