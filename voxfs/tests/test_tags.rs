@@ -9,18 +9,8 @@ fn test_tags() {
     let mut handler = Handler::new(4096 * 30); // Disk size of 120 KiB
     let mut manager = Manager::new();
 
-    let root_tag = TagBlock::new(
-        0,
-        "root",
-        TagFlags::new(true, true),
-        manager.current_time(),
-        0x0,
-        0x0,
-        [0u64; 12],
-    );
-
     let mut disk =
-        Disk::make_new_filesystem_with_root(&mut handler, &mut manager, root_tag.clone()).unwrap();
+        Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
 
     let file_contents = "The file contents are testing, 1234, ok so this should be one block!"
         .as_bytes()
@@ -72,18 +62,8 @@ fn test_tags_12() {
     let mut handler = Handler::new(4096 * 30); // Disk size of 120 KiB
     let mut manager = Manager::new();
 
-    let root_tag = TagBlock::new(
-        0,
-        "root",
-        TagFlags::new(true, true),
-        manager.current_time(),
-        0x0,
-        0x0,
-        [0u64; 12],
-    );
-
     let mut disk =
-        Disk::make_new_filesystem_with_root(&mut handler, &mut manager, root_tag.clone()).unwrap();
+        Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
 
     let file_contents = "The file contents are testing, 1234, ok so this should be one block!"
         .as_bytes()
@@ -112,18 +92,8 @@ fn test_tags_duplicate() {
     let mut handler = Handler::new(4096 * 30); // Disk size of 120 KiB
     let mut manager = Manager::new();
 
-    let root_tag = TagBlock::new(
-        0,
-        "root",
-        TagFlags::new(true, true),
-        manager.current_time(),
-        0x0,
-        0x0,
-        [0u64; 12],
-    );
-
     let mut disk =
-        Disk::make_new_filesystem_with_root(&mut handler, &mut manager, root_tag.clone()).unwrap();
+        Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
 
     let file_contents = "The file contents are testing, 1234, ok so this should be one block!"
         .as_bytes()
@@ -157,18 +127,8 @@ fn test_tags_indirect() {
     let mut handler = Handler::new(4096 * 30); // Disk size of 120 KiB
     let mut manager = Manager::new();
 
-    let root_tag = TagBlock::new(
-        0,
-        "root",
-        TagFlags::new(true, true),
-        manager.current_time(),
-        0x0,
-        0x0,
-        [0u64; 12],
-    );
-
     let mut disk =
-        Disk::make_new_filesystem_with_root(&mut handler, &mut manager, root_tag.clone()).unwrap();
+        Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
 
     let file_contents = "The file contents are testing, 1234, ok so this should be one block!"
         .as_bytes()
@@ -197,18 +157,8 @@ fn test_tags_indirects() {
     let mut handler = Handler::new(4096 * 1000); // Disk size of 120 KiB
     let mut manager = Manager::new();
 
-    let root_tag = TagBlock::new(
-        0,
-        "root",
-        TagFlags::new(true, true),
-        manager.current_time(),
-        0x0,
-        0x0,
-        [0u64; 12],
-    );
-
     let mut disk =
-        Disk::make_new_filesystem_with_root(&mut handler, &mut manager, root_tag.clone()).unwrap();
+        Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
 
     let file_contents = "The file contents are testing, 1234, ok so this should be one block!"
         .as_bytes()
@@ -237,18 +187,8 @@ fn test_custom_tag() {
     let mut handler = Handler::new(4096 * 30); // Disk size of 120 KiB
     let mut manager = Manager::new();
 
-    let root_tag = TagBlock::new(
-        0,
-        "root",
-        TagFlags::new(true, true),
-        manager.current_time(),
-        0x0,
-        0x0,
-        [0u64; 12],
-    );
-
     let mut disk =
-        Disk::make_new_filesystem_with_root(&mut handler, &mut manager, root_tag.clone()).unwrap();
+        Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
 
     let custom_tag = disk
         .create_new_tag("file_1", TagFlags::new(true, true))
@@ -306,18 +246,8 @@ fn test_remove_tag() {
     let mut handler = Handler::new(4096 * 30); // Disk size of 120 KiB
     let mut manager = Manager::new();
 
-    let root_tag = TagBlock::new(
-        0,
-        "root",
-        TagFlags::new(true, true),
-        manager.current_time(),
-        0x0,
-        0x0,
-        [0u64; 12],
-    );
-
     let mut disk =
-        Disk::make_new_filesystem_with_root(&mut handler, &mut manager, root_tag.clone()).unwrap();
+        Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
 
     let custom_tag = disk
         .create_new_tag("file_1", TagFlags::new(true, true))
@@ -380,18 +310,8 @@ fn test_remove_from_indirect_tag() {
     let mut handler = Handler::new(4096 * 60); // Disk size of 120 KiB
     let mut manager = Manager::new();
 
-    let root_tag = TagBlock::new(
-        0,
-        "root",
-        TagFlags::new(true, true),
-        manager.current_time(),
-        0x0,
-        0x0,
-        [0u64; 12],
-    );
-
     let mut disk =
-        Disk::make_new_filesystem_with_root(&mut handler, &mut manager, root_tag.clone()).unwrap();
+        Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
 
     let custom_tag = disk
         .create_new_tag("file_1", TagFlags::new(true, true))
@@ -430,18 +350,8 @@ fn test_remove_from_large_tag() {
     let mut handler = Handler::new(4096 * 1000); // Disk size of 120 KiB
     let mut manager = Manager::new();
 
-    let root_tag = TagBlock::new(
-        0,
-        "root",
-        TagFlags::new(true, true),
-        manager.current_time(),
-        0x0,
-        0x0,
-        [0u64; 12],
-    );
-
     let mut disk =
-        Disk::make_new_filesystem_with_root(&mut handler, &mut manager, root_tag.clone()).unwrap();
+        Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
 
     let custom_tag = disk
         .create_new_tag("file_1", TagFlags::new(true, true))
@@ -484,18 +394,8 @@ fn test_delete_tag() {
     let mut handler = Handler::new(4096 * 30); // Disk size of 120 KiB
     let mut manager = Manager::new();
 
-    let root_tag = TagBlock::new(
-        0,
-        "root",
-        TagFlags::new(true, true),
-        manager.current_time(),
-        0x0,
-        0x0,
-        [0u64; 12],
-    );
-
     let mut disk =
-        Disk::make_new_filesystem_with_root(&mut handler, &mut manager, root_tag.clone()).unwrap();
+        Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
 
     let custom_tag = disk
         .create_new_tag("file_1", TagFlags::new(true, true))
@@ -561,18 +461,8 @@ fn test_delete_large_tag() {
     let mut handler = Handler::new(4096 * 60); // Disk size of 120 KiB
     let mut manager = Manager::new();
 
-    let root_tag = TagBlock::new(
-        0,
-        "root",
-        TagFlags::new(true, true),
-        manager.current_time(),
-        0x0,
-        0x0,
-        [0u64; 12],
-    );
-
     let mut disk =
-        Disk::make_new_filesystem_with_root(&mut handler, &mut manager, root_tag.clone()).unwrap();
+        Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
 
     let custom_tag = disk
         .create_new_tag("file_1", TagFlags::new(true, true))

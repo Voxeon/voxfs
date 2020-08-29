@@ -211,18 +211,8 @@ fn test_open_multiple_small_files_tagged() {
     let mut handler = Handler::new(4096 * 300); // Disk size of 120 KiB
     let mut manager = Manager::new();
 
-    let root_tag = TagBlock::new(
-        0,
-        "root",
-        TagFlags::new(true, true),
-        manager.current_time(),
-        0x0,
-        0x0,
-        [0u64; 12],
-    );
-
     let mut disk =
-        Disk::make_new_filesystem_with_root(&mut handler, &mut manager, root_tag.clone()).unwrap();
+        Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
 
     let file_contents = "The file contents are testing, 1234, ok so this should be one block!"
         .as_bytes()
@@ -263,18 +253,8 @@ fn test_open_multiple_small_files_tag_removed() {
     let mut handler = Handler::new(4096 * 1000); // Disk size of 120 KiB
     let mut manager = Manager::new();
 
-    let root_tag = TagBlock::new(
-        0,
-        "root",
-        TagFlags::new(true, true),
-        manager.current_time(),
-        0x0,
-        0x0,
-        [0u64; 12],
-    );
-
     let mut disk =
-        Disk::make_new_filesystem_with_root(&mut handler, &mut manager, root_tag.clone()).unwrap();
+        Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
 
     let file_contents = "The file contents are testing, 1234, ok so this should be one block!"
         .as_bytes()
