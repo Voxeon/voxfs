@@ -155,7 +155,7 @@ impl INode {
         return res;
     }
 
-    pub fn size() -> u64 {
+    pub const fn size() -> u64 {
         return 256;
     }
 
@@ -187,8 +187,14 @@ impl INode {
         return self.size;
     }
 
+    #[inline]
     pub fn blocks(&self) -> [Extent; 5] {
         return self.blocks;
+    }
+
+    #[inline]
+    pub fn num_extents(&self) -> u8 {
+        return self.num_extents;
     }
 }
 

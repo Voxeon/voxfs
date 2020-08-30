@@ -6,6 +6,6 @@ mod disk;
 mod disk_blocks;
 pub mod disk_handler;
 
-pub use disk::Disk;
+pub use disk::{Disk, FileSize};
 pub use disk_blocks::{INode, INodeFlags, IndirectINode, IndirectTagBlock, TagBlock, TagFlags};
 pub use disk_handler::DiskHandler;

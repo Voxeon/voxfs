@@ -29,5 +29,6 @@ pub enum VoxFSError<E> {
     FailedToFreeTag,
     FailedToFreeBlock,
     TagNotAppliedToINode,
+    CorruptedIndirectINode,
     DiskError(E),
 }

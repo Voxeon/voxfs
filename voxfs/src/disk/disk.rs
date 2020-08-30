@@ -16,6 +16,11 @@ const DEFAULT_BLOCK_SIZE: u64 = 4_096; // In bytes. 4KiB.
 // TODO: 4. Support appending to files.
 // TODO: 5. Support overwriting files.
 
+pub struct FileSize {
+    pub physical_size: u64,
+    pub actual_size: u64,
+}
+
 pub struct Disk<'a, 'b, E: VoxFSErrorConvertible> {
     handler: &'a mut dyn DiskHandler<E>,
     manager: &'b mut dyn OSManager,
@@ -797,6 +802,32 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         self.inodes.push(inode);
 
         return Ok(inode);
+    }
+
+    /// Returns the actual file size and the physical on disk file size
+    pub fn file_size(&self, inode: &INode) -> Result<FileSize, VoxFSError<E>> {
+        let actual_size = inode.file_size();
+        let mut physical_size = 0;
+        let mut next = inode.indirect_pointer();
+
+        for i in 0..inode.num_extents() as usize {
+            let extent = inode.blocks()[i];
+            physical_size += (extent.end - extent.start + 1) * self.block_size; // +1 because inclusive
+        }
+
+        while next.is_some() {
+            let bytes = unwrap_error_aidfs_convertible!(self.handler.read_bytes(next.unwrap(), self.block_size));
+            let indirect_inode = match IndirectINode::from_bytes(&bytes) {
+                Some(i) => i,
+                None => return Err(VoxFSError::CorruptedIndirectINode),
+            };
+
+            for extent in &indirect_inode.extents() {
+                physical_size += (extent.end - extent.start + 1) * self.block_size; // +1 because inclusive
+            }
+        }
+
+        return Ok(FileSize { actual_size, physical_size });
     }
 
     /// Reads an entire file from the disk

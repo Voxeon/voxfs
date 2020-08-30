@@ -22,7 +22,7 @@ fn test_create_new_file() {
     )
     .unwrap();
 
-    let mut ultra_large_file = vec![0u8; 4096 * 6]; // We want to take up more than 5 blocks so an indirect inode is required.
+    let mut ultra_large_file = vec![0u8; 4096 * 6]; // We want to take up more than 5 blocks so an extent is required.
     ultra_large_file[0] = 0xff;
 
     disk.create_new_file(
@@ -36,4 +36,37 @@ fn test_create_new_file() {
         handler.dump_disk()[32768..32768 + file_contents.len()].to_vec(),
         file_contents
     );
+}
+
+#[test]
+fn test_file_size() {
+    let mut handler = Handler::new(4096 * 30); // Disk size of 120 KiB
+    let mut manager = Manager::new();
+
+    let mut disk = Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
+
+    let file_contents = "The file contents are testing, 1234, ok so this should be one block!"
+        .as_bytes()
+        .to_vec();
+
+    disk.create_new_file(
+        "test_file",
+        INodeFlags::new(true, true, true, false),
+        file_contents.clone(),
+    )
+        .unwrap();
+
+    let mut ultra_large_file = vec![0u8; 4096 * 6 + 33]; // We want to take up more than 5 blocks so an indirect inode is required.
+    ultra_large_file[0] = 0xff;
+
+    let large_inode = disk.create_new_file(
+        "test_file_2",
+        INodeFlags::new(true, true, true, false),
+        ultra_large_file,
+    )
+        .unwrap();
+
+    let file_size = disk.file_size(&large_inode).unwrap();
+    assert_eq!(file_size.actual_size, 4096 * 6 + 33);
+    assert_eq!(file_size.physical_size, 4096 * 7);
 }
