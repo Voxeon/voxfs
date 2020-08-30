@@ -27,7 +27,7 @@ fn test_open_single_file() {
         .to_vec();
 
     let comp_inode = disk
-        .create_new_file_first_free(
+        .create_new_file(
             "test_file",
             INodeFlags::new(true, true, true, false),
             file_contents.clone(),
@@ -77,7 +77,7 @@ fn test_open_single_large_file() {
     };
 
     let comp_inode = disk
-        .create_new_file_first_free(
+        .create_new_file(
             "test_file",
             INodeFlags::new(true, true, true, false),
             file_contents.clone(),
@@ -124,7 +124,7 @@ fn test_open_multiple_small_files() {
 
     for i in 0..30 {
         comp_inodes.push(
-            disk.create_new_file_first_free(
+            disk.create_new_file(
                 &format!("test_file_{}", i),
                 INodeFlags::new(true, true, true, false),
                 file_contents.clone(),
@@ -181,7 +181,7 @@ fn test_open_multiple_large_files() {
 
     for i in 0..6 {
         comp_inodes.push(
-            disk.create_new_file_first_free(
+            disk.create_new_file(
                 &format!("test_file_{}", i),
                 INodeFlags::new(true, true, true, false),
                 file_contents.clone(),
@@ -221,7 +221,7 @@ fn test_open_multiple_small_files_tagged() {
 
     for i in 0..30 {
         comp_inodes.push(
-            disk.create_new_file_first_free(
+            disk.create_new_file(
                 &format!("test_file_{}", i),
                 INodeFlags::new(true, true, true, false),
                 file_contents.clone(),
@@ -262,7 +262,7 @@ fn test_open_multiple_small_files_tag_removed() {
 
     for i in 0..523 {
         comp_inodes.push(
-            disk.create_new_file_first_free(
+            disk.create_new_file(
                 &format!("test_file_{}", i),
                 INodeFlags::new(true, true, true, false),
                 file_contents.clone(),

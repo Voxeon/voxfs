@@ -15,7 +15,7 @@ fn test_read_small_file() {
         b"The file contents are testing, 1234, ok so this should be one block!".to_vec();
 
     let node = disk
-        .create_new_file_first_free(
+        .create_new_file(
             "test_file",
             INodeFlags::new(true, true, true, false),
             file_contents.clone(),
@@ -41,7 +41,7 @@ fn test_read_large_file() {
     }
 
     let node = disk
-        .create_new_file_first_free(
+        .create_new_file(
             "test_file",
             INodeFlags::new(true, true, true, false),
             file_contents.clone(),

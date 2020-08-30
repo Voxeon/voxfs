@@ -18,7 +18,7 @@ fn test_list_all_inodes() {
     let mut comp_nodes = Vec::new();
 
     comp_nodes.push(
-        disk.create_new_file_first_free(
+        disk.create_new_file(
             "test_file",
             INodeFlags::new(true, true, true, false),
             file_contents.clone(),
@@ -30,7 +30,7 @@ fn test_list_all_inodes() {
     ultra_large_file[0] = 0xff;
 
     comp_nodes.push(
-        disk.create_new_file_first_free(
+        disk.create_new_file(
             "test_file_2",
             INodeFlags::new(true, true, true, false),
             ultra_large_file,
@@ -41,7 +41,7 @@ fn test_list_all_inodes() {
     let file_contents_2 = "Different file contents for this file!".as_bytes().to_vec();
 
     comp_nodes.push(
-        disk.create_new_file_first_free(
+        disk.create_new_file(
             "test_file",
             INodeFlags::new(true, true, true, false),
             file_contents_2.clone(),
@@ -69,7 +69,7 @@ fn test_list_all_inodes_30() {
 
     for _ in 0..30 {
         comp_nodes.push(
-            disk.create_new_file_first_free(
+            disk.create_new_file(
                 "test_file",
                 INodeFlags::new(true, true, true, false),
                 file_contents.clone(),
@@ -98,7 +98,7 @@ fn test_list_all_inodes_300() {
 
     for _ in 0..300 {
         comp_nodes.push(
-            disk.create_new_file_first_free(
+            disk.create_new_file(
                 "test_file",
                 INodeFlags::new(true, true, true, false),
                 file_contents.clone(),

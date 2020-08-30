@@ -641,7 +641,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
     }
 
     /// Creates a new file in the first available index in the first available INode location. A copy of the inode is returned but the original is stored in the disk.
-    pub fn create_new_file_first_free(
+    pub fn create_new_file(
         &mut self,
         name: &str,
         flags: INodeFlags,

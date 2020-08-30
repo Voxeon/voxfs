@@ -18,7 +18,7 @@ fn test_tags() {
     let mut comp_nodes = Vec::new();
 
     comp_nodes.push(
-        disk.create_new_file_first_free(
+        disk.create_new_file(
             "test_file",
             INodeFlags::new(true, true, true, false),
             file_contents.clone(),
@@ -30,7 +30,7 @@ fn test_tags() {
     ultra_large_file[0] = 0xff;
 
     comp_nodes.push(
-        disk.create_new_file_first_free(
+        disk.create_new_file(
             "test_file_2",
             INodeFlags::new(true, true, true, false),
             ultra_large_file,
@@ -41,7 +41,7 @@ fn test_tags() {
     let file_contents_2 = "Different file contents for this file!".as_bytes().to_vec();
 
     comp_nodes.push(
-        disk.create_new_file_first_free(
+        disk.create_new_file(
             "test_file",
             INodeFlags::new(true, true, true, false),
             file_contents_2.clone(),
@@ -71,7 +71,7 @@ fn test_tags_12() {
 
     for i in 0..12 {
         comp_nodes.push(
-            disk.create_new_file_first_free(
+            disk.create_new_file(
                 "test_file",
                 INodeFlags::new(true, true, true, false),
                 file_contents.clone(),
@@ -100,7 +100,7 @@ fn test_tags_duplicate() {
 
     for i in 0..11 {
         comp_nodes.push(
-            disk.create_new_file_first_free(
+            disk.create_new_file(
                 "test_file",
                 INodeFlags::new(true, true, true, false),
                 file_contents.clone(),
@@ -134,7 +134,7 @@ fn test_tags_indirect() {
 
     for i in 0..21 {
         comp_nodes.push(
-            disk.create_new_file_first_free(
+            disk.create_new_file(
                 "test_file",
                 INodeFlags::new(true, true, true, false),
                 file_contents.clone(),
@@ -163,7 +163,7 @@ fn test_tags_indirects() {
 
     for i in 0..730 {
         comp_nodes.push(
-            disk.create_new_file_first_free(
+            disk.create_new_file(
                 "test_file",
                 INodeFlags::new(true, true, true, false),
                 file_contents.clone(),
@@ -197,7 +197,7 @@ fn test_custom_tag() {
     let mut comp_nodes = Vec::new();
 
     comp_nodes.push(
-        disk.create_new_file_first_free(
+        disk.create_new_file(
             "test_file",
             INodeFlags::new(true, true, true, false),
             file_contents.clone(),
@@ -209,7 +209,7 @@ fn test_custom_tag() {
     ultra_large_file[0] = 0xff;
 
     comp_nodes.push(
-        disk.create_new_file_first_free(
+        disk.create_new_file(
             "test_file_2",
             INodeFlags::new(true, true, true, false),
             ultra_large_file,
@@ -220,7 +220,7 @@ fn test_custom_tag() {
     let file_contents_2 = "Different file contents for this file!".as_bytes().to_vec();
 
     comp_nodes.push(
-        disk.create_new_file_first_free(
+        disk.create_new_file(
             "test_file",
             INodeFlags::new(true, true, true, false),
             file_contents_2.clone(),
@@ -255,7 +255,7 @@ fn test_remove_tag() {
     let mut comp_nodes = Vec::new();
 
     comp_nodes.push(
-        disk.create_new_file_first_free(
+        disk.create_new_file(
             "test_file",
             INodeFlags::new(true, true, true, false),
             file_contents.clone(),
@@ -267,7 +267,7 @@ fn test_remove_tag() {
     ultra_large_file[0] = 0xff;
 
     comp_nodes.push(
-        disk.create_new_file_first_free(
+        disk.create_new_file(
             "test_file_2",
             INodeFlags::new(true, true, true, false),
             ultra_large_file,
@@ -278,7 +278,7 @@ fn test_remove_tag() {
     let file_contents_2 = "Different file contents for this file!".as_bytes().to_vec();
 
     comp_nodes.push(
-        disk.create_new_file_first_free(
+        disk.create_new_file(
             "test_file",
             INodeFlags::new(true, true, true, false),
             file_contents_2.clone(),
@@ -319,7 +319,7 @@ fn test_remove_from_indirect_tag() {
 
     for i in 0..13 {
         comp_nodes.push(
-            disk.create_new_file_first_free(
+            disk.create_new_file(
                 "test_file",
                 INodeFlags::new(true, true, true, false),
                 file_contents.clone(),
@@ -359,7 +359,7 @@ fn test_remove_from_large_tag() {
 
     for i in 0..523 {
         comp_nodes.push(
-            disk.create_new_file_first_free(
+            disk.create_new_file(
                 "test_file",
                 INodeFlags::new(true, true, true, false),
                 file_contents.clone(),
@@ -402,7 +402,7 @@ fn test_delete_tag() {
     let mut comp_nodes = Vec::new();
 
     comp_nodes.push(
-        disk.create_new_file_first_free(
+        disk.create_new_file(
             "test_file",
             INodeFlags::new(true, true, true, false),
             file_contents.clone(),
@@ -414,7 +414,7 @@ fn test_delete_tag() {
     ultra_large_file[0] = 0xff;
 
     comp_nodes.push(
-        disk.create_new_file_first_free(
+        disk.create_new_file(
             "test_file_2",
             INodeFlags::new(true, true, true, false),
             ultra_large_file,
@@ -425,7 +425,7 @@ fn test_delete_tag() {
     let file_contents_2 = "Different file contents for this file!".as_bytes().to_vec();
 
     comp_nodes.push(
-        disk.create_new_file_first_free(
+        disk.create_new_file(
             "test_file",
             INodeFlags::new(true, true, true, false),
             file_contents_2.clone(),
@@ -469,7 +469,7 @@ fn test_delete_large_tag() {
 
     for i in 0..30 {
         comp_nodes.push(
-            disk.create_new_file_first_free(
+            disk.create_new_file(
                 "test_file",
                 INodeFlags::new(true, true, true, false),
                 file_contents.clone(),
