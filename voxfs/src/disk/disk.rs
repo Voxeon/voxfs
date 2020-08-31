@@ -971,6 +971,11 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                 match previous {
                     Some(a) => {
                         let previous_bytes = unwrap_error_aidfs_convertible!(self.handler.read_bytes(a, self.block_size));
+                        let mut previous_indirect = match IndirectINode::from_bytes(&previous_bytes) {
+                            Some(i) => i,
+                            None => return Err(VoxFSError::CorruptedIndirectINode),
+                        };
+                        previous_indirect
                     },
                     None => {
                         self.inodes[inode_local_index].set_indirect_pointer(Some(address));
