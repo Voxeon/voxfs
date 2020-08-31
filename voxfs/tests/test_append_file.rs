@@ -56,6 +56,8 @@ fn test_append_new_block() {
 
     disk.append_file_bytes(node_index, b).unwrap();
 
+    assert_eq!(disk.read_file(node_index).unwrap(), file_contents);
+
     assert_eq!(
         handler.dump_disk()[32768..32768 + file_contents.len()].to_vec(),
         file_contents

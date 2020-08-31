@@ -32,5 +32,6 @@ pub enum VoxFSError<E> {
     CorruptedIndirectINode,
     CouldNotFindINode,
     FailedToSetBitmapBit,
+    ExpectedIndirectNode,
     DiskError(E),
 }
