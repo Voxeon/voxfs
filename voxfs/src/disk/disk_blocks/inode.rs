@@ -38,7 +38,7 @@ pub struct INode {
     creation_time: u64,
     /// checksum, sum of the bytes with wrapping addition must be zero.
     checksum: u8,
-    /// indirect block points to a block that only contains a list of pointers to other blocks
+    /// indirect block points to a block that only contains a list of pointers to other blocks. It IS an address not an index.
     indirect_block: u64,
     /// The number of extents stored in THIS inode excluding indirect inodes.
     num_extents: u8,
@@ -47,7 +47,7 @@ pub struct INode {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-/// An extent represents a range of blocks, it is inclusive at BOTH ends.
+/// An extent represents a range of blocks, it is inclusive at BOTH ends. It uses data block indexes.
 pub struct Extent {
     pub start: u64,
     pub end: u64,
@@ -60,9 +60,9 @@ pub struct IndirectINode {
     checksum: u8,
     /// Reserved byte
     reserved: u8,
-    /// Pointer to another IndirectINode
+    /// Pointer to another IndirectINode, an address.
     next: u64,
-    /// The number of extents stored in THIS inode exlcuding indirect inodes.
+    /// The number of extents stored in THIS inode excluding indirect inodes.
     num_extents: u16,
     /// As many extents as  we can represent, a maximum of 65,355 entries.
     pointers: Vec<Extent>,
@@ -179,12 +179,26 @@ impl INode {
         }
     }
 
+    pub fn set_indirect_pointer(&mut self, new: Option<u64>) {
+        match new {
+            Some(n) => self.indirect_block = n,
+            None => self.indirect_block = 0,
+        }
+
+        self.set_checksum();
+    }
+
     pub fn index(&self) -> u64 {
         return self.index;
     }
 
     pub fn file_size(&self) -> u64 {
         return self.size;
+    }
+
+    pub fn increase_file_size(&mut self, amount: u64) {
+        self.size += amount;
+        self.set_checksum();
     }
 
     #[inline]
@@ -196,6 +210,9 @@ impl INode {
     pub fn num_extents(&self) -> u8 {
         return self.num_extents;
     }
+
+    #[inline]
+    pub const fn max_extents() -> u8 { return 5; }
 }
 
 impl Checksum for INode {
@@ -428,8 +445,17 @@ impl IndirectINode {
         return res;
     }
 
+    pub fn next(&self) -> Option<u64> {
+        if self.next == 0 {
+            return None;
+        } else {
+            return Some(self.next);
+        }
+    }
+
     pub fn set_next(&mut self, next: u64) {
         self.next = next;
+        self.set_checksum();
     }
 
     pub fn next_is_set(&self) -> bool {
@@ -444,6 +470,8 @@ impl IndirectINode {
         self.pointers.push(extent);
         self.num_extents += 1;
 
+        self.set_checksum();
+
         return true;
     }
 
@@ -455,7 +483,16 @@ impl IndirectINode {
         self.pointers.remove(index as usize);
         self.num_extents -= 1;
 
+        self.set_checksum();
+
         return true;
+    }
+
+    pub fn last_extent(&self) -> Option<Extent> {
+        return match self.pointers.last() {
+            Some(p) => Some(*p),
+            None => None,
+        };
     }
 
     pub fn extents(&self) -> Vec<Extent> {

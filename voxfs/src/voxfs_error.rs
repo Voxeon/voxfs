@@ -30,5 +30,7 @@ pub enum VoxFSError<E> {
     FailedToFreeBlock,
     TagNotAppliedToINode,
     CorruptedIndirectINode,
+    CouldNotFindINode,
+    FailedToSetBitmapBit,
     DiskError(E),
 }

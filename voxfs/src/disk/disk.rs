@@ -667,29 +667,34 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
 
         let mut contents_offset = 0;
 
+        // We do this in two separate loops to prevent corrupting the memory bitmap.
         for (start, end) in &blocks {
             for i in *start..=*end {
                 if self.block_bitmap.bit_at(i as usize).unwrap() {
                     return Err(VoxFSError::BlockAlreadyAllocated);
-                } else {
-                    self.block_bitmap.set_bit(i as usize, true);
+                }
+            }
+        }
 
-                    if contents_offset + self.block_size > contents.len() as u64 {
-                        unwrap_error_aidfs_convertible!(self.handler.write_bytes(
+        for (start, end) in &blocks {
+            for i in *start..=*end {
+                self.block_bitmap.set_bit(i as usize, true);
+
+                if contents_offset + self.block_size > contents.len() as u64 {
+                    unwrap_error_aidfs_convertible!(self.handler.write_bytes(
                             &contents[contents_offset as usize..].to_vec(),
                             self.super_block.data_start_address() + i * self.block_size,
                         ));
-                    } else {
-                        unwrap_error_aidfs_convertible!(self.handler.write_bytes(
+                } else {
+                    unwrap_error_aidfs_convertible!(self.handler.write_bytes(
                             &contents[contents_offset as usize
                                 ..(contents_offset + self.block_size) as usize]
                                 .to_vec(),
                             self.super_block.data_start_address() + i * self.block_size,
                         ));
-                    }
-
-                    contents_offset += self.block_size;
                 }
+
+                contents_offset += self.block_size;
             }
         }
 
@@ -865,6 +870,121 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         }
 
         return Ok(result_bytes);
+    }
+
+    pub fn append_file_bytes(&mut self, inode_index: u64, bytes: Vec<u8>) -> Result<(), VoxFSError<E>> {
+        // locate the inode in our memory map
+        let mut inode_local_index = None;
+
+        for (i, node) in self.inodes.iter().enumerate() {
+            if node.index() == inode_index {
+                inode_local_index = Some(i);
+                break;
+            }
+        }
+
+        if inode_local_index.is_none() {
+            return Err(VoxFSError::CouldNotFindINode);
+        }
+
+        let inode_local_index = inode_local_index.unwrap();
+        let inode = self.inodes[inode_local_index];
+
+        // First thing we need to do is find the last block and how much space of that block is available.
+        let mut last_block_extent = inode.blocks()[(inode.num_extents() - 1) as usize];
+        let mut next = inode.indirect_pointer();
+        let mut previous = None;
+
+        while next.is_some() {
+            let bytes = unwrap_error_aidfs_convertible!(self.handler.read_bytes(next.unwrap(), self.block_size));
+            let indirect_inode = match IndirectINode::from_bytes(&bytes) {
+                Some(i) => i,
+                None => return Err(VoxFSError::CorruptedIndirectINode),
+            };
+
+            if indirect_inode.next().is_none() {
+                last_block_extent = indirect_inode.last_extent().unwrap();
+            }
+
+            previous = next;
+            next = indirect_inode.next();
+        }
+
+        let amount_available = self.block_size - inode.file_size() % self.block_size;
+
+        if amount_available > bytes.len() as u64 {
+            let block_address = self.data_index_to_address(last_block_extent.end);
+            let address = block_address + (self.block_size - amount_available);
+            unwrap_error_aidfs_convertible!(self.handler.write_bytes(&bytes, address));
+            self.inodes[inode_local_index].increase_file_size(bytes.len() as u64);
+            unwrap_error_aidfs_convertible!(self.handler.write_bytes(&self.inodes[inode_local_index].to_bytes().to_vec(), self.super_block.inode_start_address() + self.inodes[inode_local_index].index() * INode::size()));
+        } else {
+            // This could potentially be improved by checking the already existing extents for space either side but I don't see the practical advantage in the long term to this approach.
+            let block_address = self.data_index_to_address(last_block_extent.end);
+            let address = block_address + (self.block_size - amount_available);
+
+            let pointers = match self.find_blocks(bytes.len() as u64 - amount_available) {
+                Some(p) => p,
+                None => return Err(VoxFSError::NotEnoughFreeDataBlocks),
+            };
+
+            for (start, end) in &pointers {
+                for i in *start..=*end {
+                    if self.block_bitmap.bit_at(i as usize).unwrap() {
+                        return Err(VoxFSError::BlockAlreadyAllocated);
+                    }
+                }
+            }
+
+            let mut extents = Vec::new();
+
+            for (start, end) in &pointers {
+                for i in *start..=*end {
+                    if !self.block_bitmap.set_bit(i as usize, true) {
+                        return Err(VoxFSError::FailedToSetBitmapBit)
+                    }
+                }
+
+                extents.push(Extent { start: *start, end: *end });
+            }
+
+            if self.inodes[inode_local_index].num_extents() < INode::max_extents() {
+                //TODO
+            } else {
+                let new_indirect = IndirectINode::new(extents, 0, self.block_size);
+                let index = match self.find_block() {
+                    Some(i) => i,
+                    None => return Err(VoxFSError::NotEnoughFreeDataBlocks),
+                };
+
+                let address = self.super_block.data_start_address() + index * self.block_size;
+
+                if self.block_bitmap.bit_at(index as usize).unwrap() {
+                    return Err(VoxFSError::BlockAlreadyAllocated);
+                }
+
+                if !self.block_bitmap.set_bit(index as usize, true) {
+                    return Err(VoxFSError::FailedToSetBitmapBit)
+                }
+
+                // We need to set a pointer to this new indirect block
+                match previous {
+                    Some(a) => {
+                        let previous_bytes = unwrap_error_aidfs_convertible!(self.handler.read_bytes(a, self.block_size));
+                    },
+                    None => {
+                        self.inodes[inode_local_index].set_indirect_pointer(Some(address));
+                    }
+                }
+            }
+
+            unwrap_error_aidfs_convertible!(self.handler.write_bytes(&bytes[..amount_available as usize].to_vec(), address));
+
+            self.inodes[inode_local_index].increase_file_size(bytes.len() as u64);
+            unwrap_error_aidfs_convertible!(self.handler.write_bytes(&self.inodes[inode_local_index].to_bytes().to_vec(), self.super_block.inode_start_address() + self.inodes[inode_local_index].index() * INode::size()));
+        }
+
+        return Ok(());
     }
 
     /// Writes the block availability bit maps
@@ -1078,5 +1198,11 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         );
 
         return (address - self.super_block.data_start_address()) / self.block_size;
+    }
+
+    /// Converts data block index into an address,
+    #[inline]
+    fn data_index_to_address(&self, index: u64) -> u64 {
+        return self.super_block.data_start_address() + index * self.block_size;
     }
 }
