@@ -54,16 +54,17 @@ fn test_file_size() {
         INodeFlags::new(true, true, true, false),
         file_contents.clone(),
     )
-        .unwrap();
+    .unwrap();
 
     let mut ultra_large_file = vec![0u8; 4096 * 6 + 33]; // We want to take up more than 5 blocks so an indirect inode is required.
     ultra_large_file[0] = 0xff;
 
-    let large_inode = disk.create_new_file(
-        "test_file_2",
-        INodeFlags::new(true, true, true, false),
-        ultra_large_file,
-    )
+    let large_inode = disk
+        .create_new_file(
+            "test_file_2",
+            INodeFlags::new(true, true, true, false),
+            ultra_large_file,
+        )
         .unwrap();
 
     let file_size = disk.file_size(&large_inode).unwrap();

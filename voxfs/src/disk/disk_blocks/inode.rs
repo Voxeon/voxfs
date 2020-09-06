@@ -6,6 +6,7 @@ use byteorder::{ByteOrder, LittleEndian};
 use chrono::{DateTime, Utc};
 
 const MAX_INODE_NAME_LENGTH: usize = 125;
+const INODE_EXTENT_COUNT: usize = 5;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[repr(packed)]
@@ -43,7 +44,7 @@ pub struct INode {
     /// The number of extents stored in THIS inode excluding indirect inodes.
     num_extents: u8,
     /// pointers to blocks, if a space is unused it will be represented simply by 0
-    blocks: [Extent; 5],
+    blocks: [Extent; INODE_EXTENT_COUNT],
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -124,7 +125,7 @@ impl INode {
         creation_time: DateTime<Utc>,
         indirect_pointer: u64,
         num_extents: u8,
-        blocks: [Extent; 5],
+        blocks: [Extent; INODE_EXTENT_COUNT],
     ) -> Self {
         let mut name: [char; MAX_INODE_NAME_LENGTH] = ['\0'; MAX_INODE_NAME_LENGTH];
 
@@ -201,8 +202,21 @@ impl INode {
         self.set_checksum();
     }
 
+    pub fn append_extent(&mut self, extent: Extent) -> bool {
+        if self.num_extents >= INODE_EXTENT_COUNT as u8 {
+            return false;
+        }
+
+        self.blocks[self.num_extents as usize] = extent;
+        self.num_extents += 1;
+
+        self.set_checksum();
+
+        return true;
+    }
+
     #[inline]
-    pub fn blocks(&self) -> [Extent; 5] {
+    pub fn blocks(&self) -> [Extent; INODE_EXTENT_COUNT] {
         return self.blocks;
     }
 
@@ -212,7 +226,9 @@ impl INode {
     }
 
     #[inline]
-    pub const fn max_extents() -> u8 { return 5; }
+    pub const fn max_extents() -> u8 {
+        return INODE_EXTENT_COUNT as u8;
+    }
 }
 
 impl Checksum for INode {
@@ -289,7 +305,7 @@ impl ByteSerializable for INode {
         let checksum: u8;
         let indirect_block: u64;
         let num_extents: u8;
-        let mut blocks = [Extent::zeroed(); 5];
+        let mut blocks = [Extent::zeroed(); INODE_EXTENT_COUNT];
 
         index = LittleEndian::read_u64(&bytes[offset..]);
         offset += 8;
@@ -501,6 +517,10 @@ impl IndirectINode {
 
     pub fn capacity(&self) -> u64 {
         return self.maximum_extents;
+    }
+
+    pub fn set_maximum_extents_blocksize(&mut self, blocksize: u64) {
+        self.maximum_extents = Self::max_extents_for_blocksize(blocksize);
     }
 
     #[inline]

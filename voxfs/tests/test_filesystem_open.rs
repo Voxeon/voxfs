@@ -45,7 +45,7 @@ fn test_open_single_file() {
     assert_eq!(inodes.len(), 1);
     assert_eq!(inodes[0], comp_inode);
 
-    assert_eq!(file_contents, disk.read_file(&comp_inode).unwrap());
+    assert_eq!(file_contents, disk.read_file(comp_inode.index()).unwrap());
 }
 
 #[test]
@@ -95,7 +95,7 @@ fn test_open_single_large_file() {
     assert_eq!(inodes.len(), 1);
     assert_eq!(inodes[0], comp_inode);
 
-    assert_eq!(file_contents, disk.read_file(&comp_inode).unwrap());
+    assert_eq!(file_contents, disk.read_file(comp_inode.index()).unwrap());
 }
 
 #[test]
@@ -145,7 +145,7 @@ fn test_open_multiple_small_files() {
     assert_eq!(inodes, comp_inodes);
 
     for inode in inodes {
-        assert_eq!(file_contents, disk.read_file(&inode).unwrap());
+        assert_eq!(file_contents, disk.read_file(inode.index()).unwrap());
     }
 }
 
@@ -202,7 +202,7 @@ fn test_open_multiple_large_files() {
     assert_eq!(inodes, comp_inodes);
 
     for inode in inodes {
-        assert_eq!(file_contents, disk.read_file(&inode).unwrap());
+        assert_eq!(file_contents, disk.read_file(inode.index()).unwrap());
     }
 }
 
@@ -243,7 +243,7 @@ fn test_open_multiple_small_files_tagged() {
     assert_eq!(inodes, comp_inodes);
 
     for inode in inodes {
-        assert_eq!(file_contents, disk.read_file(&inode).unwrap());
+        assert_eq!(file_contents, disk.read_file(inode.index()).unwrap());
     }
 }
 
@@ -289,6 +289,212 @@ fn test_open_multiple_small_files_tag_removed() {
     assert_eq!(inodes, comp_inodes);
 
     for inode in inodes {
-        assert_eq!(file_contents, disk.read_file(&inode).unwrap());
+        assert_eq!(file_contents, disk.read_file(inode.index()).unwrap());
     }
+}
+
+#[test]
+fn test_open_single_large_file_appended() {
+    let mut handler = Handler::new(4096 * 30); // Disk size of 120 KiB
+    let mut manager = Manager::new();
+
+    let root_tag = TagBlock::new(
+        0,
+        "root",
+        TagFlags::new(true, true),
+        manager.current_time(),
+        0x0,
+        0x0,
+        [0u64; 12],
+    );
+
+    let mut disk =
+        Disk::make_new_filesystem_with_root(&mut handler, &mut manager, root_tag.clone()).unwrap();
+
+    let mut file_contents = {
+        let mut res = Vec::new();
+
+        for i in 0..12042 {
+            res.push((i % 256) as u8);
+        }
+
+        res
+    };
+
+    let index = disk
+        .create_new_file(
+            "test_file",
+            INodeFlags::new(true, true, true, false),
+            file_contents.clone(),
+        )
+        .unwrap()
+        .index();
+
+    let addition = b"additional data!";
+
+    disk.append_file_bytes(index, &addition.to_vec());
+    let mut comp_inode = None;
+
+    for node in disk.list_inodes() {
+        if node.index() == index {
+            comp_inode = Some(node);
+        }
+    }
+
+    let comp_inode = comp_inode.unwrap();
+
+    file_contents.extend_from_slice(addition);
+
+    drop(disk);
+
+    let disk = Disk::open_disk(&mut handler, &mut manager).unwrap();
+    let tags = disk.list_tags();
+    let inodes = disk.list_inodes();
+
+    assert_eq!(tags.len(), 1);
+    assert_eq!(tags[0], root_tag);
+    assert_eq!(inodes.len(), 1);
+    assert_eq!(inodes[0], comp_inode);
+
+    assert_eq!(file_contents, disk.read_file(comp_inode.index()).unwrap());
+}
+
+#[test]
+fn test_open_single_large_file_appended_large() {
+    let mut handler = Handler::new(4096 * 30); // Disk size of 120 KiB
+    let mut manager = Manager::new();
+
+    let root_tag = TagBlock::new(
+        0,
+        "root",
+        TagFlags::new(true, true),
+        manager.current_time(),
+        0x0,
+        0x0,
+        [0u64; 12],
+    );
+
+    let mut disk =
+        Disk::make_new_filesystem_with_root(&mut handler, &mut manager, root_tag.clone()).unwrap();
+
+    let mut file_contents = {
+        let mut res = Vec::new();
+
+        for i in 0..12042 {
+            res.push((i % 256) as u8);
+        }
+
+        res
+    };
+
+    let index = disk
+        .create_new_file(
+            "test_file",
+            INodeFlags::new(true, true, true, false),
+            file_contents.clone(),
+        )
+        .unwrap()
+        .index();
+
+    let mut addition = vec![0u8; 4096];
+
+    disk.append_file_bytes(index, &addition);
+    let mut comp_inode = None;
+
+    for node in disk.list_inodes() {
+        if node.index() == index {
+            comp_inode = Some(node);
+        }
+    }
+
+    let comp_inode = comp_inode.unwrap();
+
+    file_contents.append(&mut addition);
+
+    drop(disk);
+
+    let disk = Disk::open_disk(&mut handler, &mut manager).unwrap();
+    let tags = disk.list_tags();
+    let inodes = disk.list_inodes();
+
+    assert_eq!(tags.len(), 1);
+    assert_eq!(tags[0], root_tag);
+    assert_eq!(inodes.len(), 1);
+    assert_eq!(inodes[0], comp_inode);
+    assert_eq!(inodes[0].file_size(), file_contents.len() as u64);
+
+    assert_eq!(file_contents, disk.read_file(comp_inode.index()).unwrap());
+}
+
+#[test]
+fn test_open_single_large_file_appended_indirect() {
+    let mut handler = Handler::new(4096 * 60); // Disk size of 120 KiB
+    let mut manager = Manager::new();
+
+    let root_tag = TagBlock::new(
+        0,
+        "root",
+        TagFlags::new(true, true),
+        manager.current_time(),
+        0x0,
+        0x0,
+        [0u64; 12],
+    );
+
+    let mut disk =
+        Disk::make_new_filesystem_with_root(&mut handler, &mut manager, root_tag.clone()).unwrap();
+
+    let mut file_contents = {
+        let mut res = Vec::new();
+
+        for i in 0..12042 {
+            res.push((i % 256) as u8);
+        }
+
+        res
+    };
+
+    let index = disk
+        .create_new_file(
+            "test_file",
+            INodeFlags::new(true, true, true, false),
+            file_contents.clone(),
+        )
+        .unwrap()
+        .index();
+
+    for _ in 0..16 {
+        let mut addition = Vec::new();
+
+        for i in 0..4097 {
+            addition.push((i % 256) as u8);
+        }
+
+        disk.append_file_bytes(index, &addition);
+        file_contents.append(&mut addition);
+    }
+
+    let mut comp_inode = None;
+
+    for node in disk.list_inodes() {
+        if node.index() == index {
+            comp_inode = Some(node);
+        }
+    }
+
+    let comp_inode = comp_inode.unwrap();
+
+    drop(disk);
+
+    let disk = Disk::open_disk(&mut handler, &mut manager).unwrap();
+    let tags = disk.list_tags();
+    let inodes = disk.list_inodes();
+
+    assert_eq!(tags.len(), 1);
+    assert_eq!(tags[0], root_tag);
+    assert_eq!(inodes.len(), 1);
+    assert_eq!(inodes[0], comp_inode);
+    assert_eq!(inodes[0].file_size(), file_contents.len() as u64);
+
+    assert_eq!(file_contents, disk.read_file(comp_inode.index()).unwrap());
 }

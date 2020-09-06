@@ -22,7 +22,7 @@ fn test_read_small_file() {
         )
         .unwrap();
 
-    let read_contents = disk.read_file(&node).unwrap();
+    let read_contents = disk.read_file(node.index()).unwrap();
 
     assert_eq!(read_contents[..file_contents.len()].to_vec(), file_contents);
 }
@@ -48,7 +48,7 @@ fn test_read_large_file() {
         )
         .unwrap();
 
-    let read_contents = disk.read_file(&node).unwrap();
+    let read_contents = disk.read_file(node.index()).unwrap();
 
     assert_eq!(read_contents[..file_contents.len()].to_vec(), file_contents);
 }
