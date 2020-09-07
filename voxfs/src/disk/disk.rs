@@ -53,7 +53,7 @@ macro_rules! unwrap_return_error_voxfs_convertible {
     };
 }
 
-/// This macro provides a way to round integers to a specific block size
+/// This macro provides a way to round a number of bits as integers to a specific block size
 macro_rules! rounded_to_alignment {
     ($n:expr, $block_size:expr) => {{
         if ($n as u64 % ($block_size * 8)) != 0 {
@@ -1317,6 +1317,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
     /// Locates extents and returns a vector of tuples where .0 is the start address and .1 is the end address.
     /// min_size: The minimum size needed in BYTES
     fn find_blocks(&self, min_size: u64) -> Option<Vec<(u64, u64)>> {
+        // Calculate how many blocks we need for the minimum size
         let num_blocks_required = {
             if min_size % self.block_size != 0 {
                 1 + min_size / self.block_size
@@ -1346,7 +1347,6 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         // Find the largest available extent first them work down to individual blocks.
         while blocks_found < num_blocks_required {
             // Find largest available extent up to the size required
-
             let mut start_index = first_index;
             let mut end_index = start_index;
 
@@ -1357,6 +1357,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
 
             // Find the largest available extent up to the required size
             while i < self.super_block.block_count() {
+                // Check if we found an extent big enough
                 if (end_index - start_index + 1) >= (num_blocks_required - blocks_found) {
                     // We add one here to account for the inclusive end of the extent
                     largest_start_index = start_index;
@@ -1434,30 +1435,32 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         return (address - self.super_block.data_start_address()) / self.block_size;
     }
 
-    /// Converts data block index into an address,
+    /// Converts data block index into an address
     #[inline]
     fn data_index_to_address(&self, index: u64) -> u64 {
         return self.super_block.data_start_address() + index * self.block_size;
     }
 
-    /// Converts inode block index into an address,
+    /// Converts inode block index into an address
     #[inline]
     fn inode_index_to_address(&self, index: u64) -> u64 {
         return self.super_block.inode_start_address() + index * INode::size();
     }
 
-    /// Converts tag block index into an address,
+    /// Converts tag block index into an address
     #[inline]
     fn tag_index_to_address(&self, index: u64) -> u64 {
         return self.super_block.tag_start_address() + index * TagBlock::size();
     }
 
+    /// Write data to an address on the disk
     #[inline]
     fn write_to_address(&mut self, address: u64, content: &Vec<u8>) -> Result<(), VoxFSError<E>> {
         unwrap_return_error_voxfs_convertible!(self.handler.write_bytes(content, address));
         return Ok(());
     }
 
+    /// Read data from an address on the disk.
     #[inline]
     fn read_from_address(
         &self,

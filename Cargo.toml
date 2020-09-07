@@ -1,2 +1,2 @@
 [workspace]
-members = ["voxfs", "voxfs_utils"]
+members = ["voxfs", "binaries/mkimage-voxfs", "binaries/visualiser-voxfs"]
