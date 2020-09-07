@@ -135,6 +135,7 @@ impl TagBlock {
         }
     }
 
+    /// Sets what the disk index within the bitmap is for this tag
     pub fn set_index(&mut self, index: u64) {
         self.index = index;
     }

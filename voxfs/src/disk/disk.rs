@@ -42,7 +42,9 @@ pub struct Disk<'a, 'b, E: VoxFSErrorConvertible> {
     inodes: Vec<INode>,
 }
 
-macro_rules! unwrap_error_aidfs_convertible {
+/// This macro unwraps an error for voxfs. We use a macro here because it takes advantage of templates.
+/// This macro returns, the name which suggests that it will cause a panic will NOT cause a panic.
+macro_rules! unwrap_return_error_voxfs_convertible {
     ($v:expr) => {
         match $v {
             Ok(val) => val,
@@ -51,6 +53,7 @@ macro_rules! unwrap_error_aidfs_convertible {
     };
 }
 
+/// This macro provides a way to round integers to a specific block size
 macro_rules! rounded_to_alignment {
     ($n:expr, $block_size:expr) => {{
         if ($n as u64 % ($block_size * 8)) != 0 {
@@ -86,7 +89,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         manager: &'b mut dyn OSManager,
         root_tag: TagBlock,
     ) -> Result<Self, VoxFSError<E>> {
-        let disk_size = unwrap_error_aidfs_convertible!(handler.disk_size());
+        let disk_size = unwrap_return_error_voxfs_convertible!(handler.disk_size());
         let block_size = DEFAULT_BLOCK_SIZE;
 
         if block_size % 64 != 0 {
@@ -94,7 +97,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         }
 
         let mut super_block = SuperBlock::new(block_size, disk_size);
-        unwrap_error_aidfs_convertible!(handler.zero_range(0, block_size)); // Zero the first block.
+        unwrap_return_error_voxfs_convertible!(handler.zero_range(0, block_size)); // Zero the first block.
 
         // The address of where we can start the data.
         let mut offset = DEFAULT_BLOCK_SIZE;
@@ -129,7 +132,9 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         super_block.set_data_start_address(offset);
 
         // Write the super block
-        unwrap_error_aidfs_convertible!(handler.write_bytes(&super_block.to_bytes().to_vec(), 0));
+        unwrap_return_error_voxfs_convertible!(
+            handler.write_bytes(&super_block.to_bytes().to_vec(), 0)
+        );
 
         let mut new_disk = Self {
             handler,
@@ -174,7 +179,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
 
         // Read the super block
         let block_size = DEFAULT_BLOCK_SIZE;
-        let first_block = unwrap_error_aidfs_convertible!(handler.read_bytes(0, block_size));
+        let first_block = unwrap_return_error_voxfs_convertible!(handler.read_bytes(0, block_size));
         let super_block = match SuperBlock::from_bytes(&first_block) {
             Some(b) => b,
             None => return Err(VoxFSError::CorruptedSuperBlock),
@@ -187,14 +192,14 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         let blocks_for_block_map = rounded_to_alignment!(super_block.block_count(), block_size);
 
         // Read the data for the bitmaps
-        let tag_bitmaps_bytes = unwrap_error_aidfs_convertible!(
+        let tag_bitmaps_bytes = unwrap_return_error_voxfs_convertible!(
             handler.read_bytes(block_size, blocks_for_tag_map * block_size)
         );
-        let inode_bitmaps_bytes = unwrap_error_aidfs_convertible!(handler.read_bytes(
+        let inode_bitmaps_bytes = unwrap_return_error_voxfs_convertible!(handler.read_bytes(
             block_size + blocks_for_tag_map * block_size,
             blocks_for_inode_map * block_size
         ));
-        let data_bitmaps_bytes = unwrap_error_aidfs_convertible!(handler.read_bytes(
+        let data_bitmaps_bytes = unwrap_return_error_voxfs_convertible!(handler.read_bytes(
             block_size + (blocks_for_tag_map + blocks_for_inode_map) * block_size,
             blocks_for_block_map * block_size
         ));
@@ -278,8 +283,9 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
             // Read the indirect blocks
             let address = current_indirect.unwrap();
             let index = self.address_to_data_index(address);
-            let bytes =
-                unwrap_error_aidfs_convertible!(self.handler.read_bytes(address, self.block_size));
+            let bytes = unwrap_return_error_voxfs_convertible!(self
+                .handler
+                .read_bytes(address, self.block_size));
 
             let block = match IndirectTagBlock::from_bytes(&bytes) {
                 Some(b) => b,
@@ -360,7 +366,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
             // NOTE: We don't bail early after finding a spot because we need to still check
             // every indirect inode to ensure we don't apply the tag twice.
             while next_address.is_some() {
-                let bytes = unwrap_error_aidfs_convertible!(self
+                let bytes = unwrap_return_error_voxfs_convertible!(self
                     .handler
                     .read_bytes(next_address.unwrap(), self.block_size));
 
@@ -410,7 +416,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                 self.block_bitmap.set_bit(index as usize, true);
 
                 // Write the new indirect block
-                unwrap_error_aidfs_convertible!(self.handler.write_bytes(
+                unwrap_return_error_voxfs_convertible!(self.handler.write_bytes(
                     &indirect_tag.to_bytes_padded(self.block_size as usize),
                     location
                 ));
@@ -424,7 +430,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                     Some(mut i) => {
                         i.set_next(location);
 
-                        unwrap_error_aidfs_convertible!(self.handler.write_bytes(
+                        unwrap_return_error_voxfs_convertible!(self.handler.write_bytes(
                             &i.to_bytes_padded(self.block_size as usize),
                             previous_indirect_location.unwrap()
                         ));
@@ -432,7 +438,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                     None => {
                         self.tags[tag_self_index].set_indirect(location);
 
-                        unwrap_error_aidfs_convertible!(self.handler.write_bytes(
+                        unwrap_return_error_voxfs_convertible!(self.handler.write_bytes(
                             &self.tags[tag_self_index].to_bytes().to_vec(),
                             self.super_block.tag_start_address()
                                 + self.tags[tag_self_index].index() * TagBlock::size()
@@ -443,14 +449,14 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                 // Otherwise place it in the free spot
 
                 // Read the indirect block and check that it was valid
-                let mut indirect =
-                    match IndirectTagBlock::from_bytes(&unwrap_error_aidfs_convertible!(self
+                let mut indirect = match IndirectTagBlock::from_bytes(
+                    &unwrap_return_error_voxfs_convertible!(self
                         .handler
-                        .read_bytes(free_indirect_tag_address.unwrap(), self.block_size)))
-                    {
-                        Some(i) => i,
-                        None => return Err(VoxFSError::CorruptedIndirectTag),
-                    };
+                        .read_bytes(free_indirect_tag_address.unwrap(), self.block_size)),
+                ) {
+                    Some(i) => i,
+                    None => return Err(VoxFSError::CorruptedIndirectTag),
+                };
 
                 // Set the blocksize so we can use the append_member function
                 indirect.set_block_size(self.block_size);
@@ -461,7 +467,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                 }
 
                 // rewrite the new indirect block
-                unwrap_error_aidfs_convertible!(self.handler.write_bytes(
+                unwrap_return_error_voxfs_convertible!(self.handler.write_bytes(
                     &indirect.to_bytes_padded(self.block_size as usize),
                     free_indirect_tag_address.unwrap()
                 ));
@@ -476,7 +482,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
 
             self.tags[tag_self_index].append_member(inode.index());
 
-            unwrap_error_aidfs_convertible!(self.handler.write_bytes(
+            unwrap_return_error_voxfs_convertible!(self.handler.write_bytes(
                 &self.tags[tag_self_index].to_bytes().to_vec(),
                 self.super_block.tag_start_address()
                     + self.tags[tag_self_index].index() * TagBlock::size()
@@ -536,7 +542,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
 
             while !found && next.is_some() {
                 let address = next.unwrap();
-                let bytes = unwrap_error_aidfs_convertible!(self
+                let bytes = unwrap_return_error_voxfs_convertible!(self
                     .handler
                     .read_bytes(address, self.block_size));
                 let mut block = match IndirectTagBlock::from_bytes(&bytes) {
@@ -566,7 +572,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                                 self.block_bitmap.set_bit(index as usize, false);
 
                                 self.write_bitmaps()?;
-                                unwrap_error_aidfs_convertible!(self.handler.write_bytes(
+                                unwrap_return_error_voxfs_convertible!(self.handler.write_bytes(
                                     &cp.to_bytes_padded(self.block_size as usize),
                                     parent_address.unwrap()
                                 ));
@@ -576,17 +582,17 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                                 self.block_bitmap.set_bit(index as usize, false);
 
                                 self.write_bitmaps()?;
-                                unwrap_error_aidfs_convertible!(self.handler.write_bytes(
+                                unwrap_return_error_voxfs_convertible!(self.handler.write_bytes(
                                     &self.tags[tag_local_index].to_bytes().to_vec(),
                                     self.super_block.tag_start_address()
                                         + self.tags[tag_local_index].index() * TagBlock::size()
                                 ));
 
-                                //unwrap_error_aidfs_convertible!(self.handler.write_bytes(&tag.to_bytes().to_vec(), self.super_block.tag_start_address() + tag.index() * TagBlock::size()));
+                                //unwrap_return_error_voxfs_convertible!(self.handler.write_bytes(&tag.to_bytes().to_vec(), self.super_block.tag_start_address() + tag.index() * TagBlock::size()));
                             }
                         }
                     } else {
-                        unwrap_error_aidfs_convertible!(self.handler.write_bytes(
+                        unwrap_return_error_voxfs_convertible!(self.handler.write_bytes(
                             &block.to_bytes_padded(self.block_size as usize),
                             address
                         ));
@@ -641,7 +647,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                 }
 
                 while next_address.is_some() {
-                    let bytes = unwrap_error_aidfs_convertible!(self
+                    let bytes = unwrap_return_error_voxfs_convertible!(self
                         .handler
                         .read_bytes(next_address.unwrap(), self.block_size));
                     let block = IndirectTagBlock::from_bytes(&bytes).unwrap();
@@ -713,12 +719,12 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                 self.block_bitmap.set_bit(i as usize, true);
 
                 if contents_offset + self.block_size > contents.len() as u64 {
-                    unwrap_error_aidfs_convertible!(self.handler.write_bytes(
+                    unwrap_return_error_voxfs_convertible!(self.handler.write_bytes(
                         &contents[contents_offset as usize..].to_vec(),
                         self.super_block.data_start_address() + i * self.block_size,
                     ));
                 } else {
-                    unwrap_error_aidfs_convertible!(self.handler.write_bytes(
+                    unwrap_return_error_voxfs_convertible!(self.handler.write_bytes(
                         &contents[contents_offset as usize
                             ..(contents_offset + self.block_size) as usize]
                             .to_vec(),
@@ -779,7 +785,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                     previous_address,
                     self.block_size,
                 );
-                unwrap_error_aidfs_convertible!(self
+                unwrap_return_error_voxfs_convertible!(self
                     .handler
                     .write_bytes(&block.to_bytes(), address));
                 previous_address = address;
@@ -825,7 +831,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
             );
         }
 
-        unwrap_error_aidfs_convertible!(self.handler.write_bytes(
+        unwrap_return_error_voxfs_convertible!(self.handler.write_bytes(
             &inode.to_bytes().to_vec(),
             self.super_block.inode_start_address() + (inode_index as u64) * INode::size()
         ));
@@ -853,7 +859,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         }
 
         while next.is_some() {
-            let bytes = unwrap_error_aidfs_convertible!(self
+            let bytes = unwrap_return_error_voxfs_convertible!(self
                 .handler
                 .read_bytes(next.unwrap(), self.block_size));
             let indirect_inode = match IndirectINode::from_bytes(&bytes) {
@@ -923,8 +929,9 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
 
             for i in extent.start..=extent.end {
                 let addr = self.super_block.data_start_address() + i * self.block_size;
-                let mut content =
-                    unwrap_error_aidfs_convertible!(self.handler.read_bytes(addr, self.block_size));
+                let mut content = unwrap_return_error_voxfs_convertible!(self
+                    .handler
+                    .read_bytes(addr, self.block_size));
 
                 if self.block_size + (result_bytes.len() as u64) > num_bytes {
                     let end_point = num_bytes - result_bytes.len() as u64;
@@ -946,7 +953,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                 return Err(VoxFSError::ExpectedIndirectNode);
             }
 
-            let bytes = unwrap_error_aidfs_convertible!(self
+            let bytes = unwrap_return_error_voxfs_convertible!(self
                 .handler
                 .read_bytes(next.unwrap(), self.block_size));
             let indirect = match IndirectINode::from_bytes(&bytes) {
@@ -957,7 +964,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
             for extent in &indirect.extents() {
                 for i in extent.start..=extent.end {
                     let addr = self.super_block.data_start_address() + i * self.block_size;
-                    let mut content = unwrap_error_aidfs_convertible!(self
+                    let mut content = unwrap_return_error_voxfs_convertible!(self
                         .handler
                         .read_bytes(addr, self.block_size));
 
@@ -1006,7 +1013,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         let mut previous = None;
 
         while next.is_some() {
-            let bytes = unwrap_error_aidfs_convertible!(self
+            let bytes = unwrap_return_error_voxfs_convertible!(self
                 .handler
                 .read_bytes(next.unwrap(), self.block_size));
             let indirect_inode = match IndirectINode::from_bytes(&bytes) {
@@ -1030,10 +1037,10 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
             let block_address = self.data_index_to_address(last_block_extent.end);
             let address = block_address + (self.block_size - amount_available);
 
-            unwrap_error_aidfs_convertible!(self.handler.write_bytes(&bytes, address));
+            unwrap_return_error_voxfs_convertible!(self.handler.write_bytes(&bytes, address));
 
             self.inodes[inode_local_index].increase_file_size(bytes.len() as u64);
-            unwrap_error_aidfs_convertible!(self.handler.write_bytes(
+            unwrap_return_error_voxfs_convertible!(self.handler.write_bytes(
                 &self.inodes[inode_local_index].to_bytes().to_vec(),
                 self.inode_index_to_address(self.inodes[inode_local_index].index())
             ));
@@ -1098,7 +1105,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
             next = inode.indirect_pointer();
 
             while next.is_some() && remaining > 0 {
-                let bytes = unwrap_error_aidfs_convertible!(self
+                let bytes = unwrap_return_error_voxfs_convertible!(self
                     .handler
                     .read_bytes(next.unwrap(), self.block_size));
 
@@ -1119,7 +1126,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                 }
 
                 if changed_indirect {
-                    unwrap_error_aidfs_convertible!(self
+                    unwrap_return_error_voxfs_convertible!(self
                         .handler
                         .write_bytes(&indirect_inode.to_bytes(), next.unwrap()));
                 }
@@ -1153,7 +1160,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                 // We need to set a pointer to this new indirect block
                 match previous {
                     Some(a) => {
-                        let previous_bytes = unwrap_error_aidfs_convertible!(self
+                        let previous_bytes = unwrap_return_error_voxfs_convertible!(self
                             .handler
                             .read_bytes(a, self.block_size));
                         let mut previous_indirect = match IndirectINode::from_bytes(&previous_bytes)
@@ -1163,7 +1170,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                         };
 
                         previous_indirect.set_next(indirect_address);
-                        unwrap_error_aidfs_convertible!(self
+                        unwrap_return_error_voxfs_convertible!(self
                             .handler
                             .write_bytes(&previous_indirect.to_bytes(), a));
                     }
@@ -1173,13 +1180,13 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                 }
 
                 // Write the new indirect block
-                unwrap_error_aidfs_convertible!(self
+                unwrap_return_error_voxfs_convertible!(self
                     .handler
                     .write_bytes(&new_indirect.to_bytes(), indirect_address));
             }
 
             // Write as many bytes to the last block as possible
-            unwrap_error_aidfs_convertible!(self
+            unwrap_return_error_voxfs_convertible!(self
                 .handler
                 .write_bytes(&bytes[..amount_available as usize].to_vec(), address));
 
@@ -1191,12 +1198,12 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                     let bytes_end_index = amount_available + ((offset + 1) * self.block_size); // Add 1 to the offset to account for the fact we want to write block_size
 
                     if bytes_end_index >= bytes.len() as u64 {
-                        unwrap_error_aidfs_convertible!(self.handler.write_bytes(
+                        unwrap_return_error_voxfs_convertible!(self.handler.write_bytes(
                             &bytes[amount_available as usize..].to_vec(),
                             index_address
                         ));
                     } else {
-                        unwrap_error_aidfs_convertible!(self.handler.write_bytes(
+                        unwrap_return_error_voxfs_convertible!(self.handler.write_bytes(
                             &bytes[amount_available as usize..bytes_end_index as usize].to_vec(),
                             index_address
                         ));
@@ -1207,7 +1214,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
             }
 
             self.inodes[inode_local_index].increase_file_size(bytes.len() as u64);
-            unwrap_error_aidfs_convertible!(self.handler.write_bytes(
+            unwrap_return_error_voxfs_convertible!(self.handler.write_bytes(
                 &self.inodes[inode_local_index].to_bytes().to_vec(),
                 self.inode_index_to_address(self.inodes[inode_local_index].index())
             ));
@@ -1219,18 +1226,18 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
     /// Writes the block availability bit maps
     fn write_bitmaps(&mut self) -> Result<(), VoxFSError<E>> {
         // Write the tags bitmap
-        unwrap_error_aidfs_convertible!(self
+        unwrap_return_error_voxfs_convertible!(self
             .handler
             .write_bytes(&self.tag_bitmap.as_bytes(), self.block_size)); // We start at blocksize because of the superblock
 
         // Write the inodes bitmap
-        unwrap_error_aidfs_convertible!(self.handler.write_bytes(
+        unwrap_return_error_voxfs_convertible!(self.handler.write_bytes(
             &self.inode_bitmap.as_bytes(),
             self.block_size + self.blocks_for_tag_map * self.block_size
         )); // We start at blocksize because of the superblock then skip the tag map
 
         // Write the data bitmap
-        unwrap_error_aidfs_convertible!(self.handler.write_bytes(
+        unwrap_return_error_voxfs_convertible!(self.handler.write_bytes(
             &self.block_bitmap.as_bytes(),
             self.block_size
                 + (self.blocks_for_tag_map + self.blocks_for_inode_map) * self.block_size
@@ -1241,6 +1248,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
 
     /// Stores a new tag in the first available spot. It will set the index field of the tag block
     fn store_tag_first_free(&mut self, mut tag: TagBlock) -> Result<TagBlock, VoxFSError<E>> {
+        // Find the first available index and load it
         let index = match self
             .tag_bitmap
             .find_next_0_index_up_to(self.super_block.tag_count() as usize)
@@ -1249,17 +1257,18 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
             None => return Err(VoxFSError::NoFreeInode),
         };
 
+        // Set the index in the tag
         tag.set_index(index as u64);
 
-        unwrap_error_aidfs_convertible!(self.handler.write_bytes(
-            &tag.to_bytes().to_vec(),
-            self.super_block.tag_start_address() + (index as u64) * TagBlock::size()
-        ));
+        // Write the tag to the disk
+        self.write_to_address(self.tag_index_to_address(index as u64),  &tag.to_bytes().to_vec())?;
 
+        // Set the spot as taken
         if !self.tag_bitmap.set_bit(index, true) {
             panic!("Unexpected fail."); // This should never happen but if it does then its a developer error so panic.
         }
 
+        // Write the bitmap
         self.write_bitmaps()?;
 
         return Ok(tag);
@@ -1271,17 +1280,13 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
 
         for i in 0..self.tag_bitmap.len() {
             if self.tag_bitmap.bit_at(i).unwrap() {
-                let location = self.super_block.tag_start_address() + (i as u64) * TagBlock::size();
+                let location = self.tag_index_to_address(i as u64);
+                let bytes = self.read_from_address(location, TagBlock::size())?;
 
-                tags.push(
-                    match TagBlock::from_bytes(&unwrap_error_aidfs_convertible!(self
-                        .handler
-                        .read_bytes(location, TagBlock::size())))
-                    {
-                        Some(tag) => tag,
-                        None => return Err(VoxFSError::CorruptedTag),
-                    },
-                );
+                tags.push(match TagBlock::from_bytes(&bytes) {
+                    Some(tag) => tag,
+                    None => return Err(VoxFSError::CorruptedTag),
+                });
             }
         }
 
@@ -1293,13 +1298,12 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         let mut inodes: Vec<INode> = Vec::new();
 
         for (index, bit) in self.inode_bitmap.flatten_bool().iter().enumerate() {
+            // If this bit is marked as taken then read the inode at that location
             if *bit {
-                let address =
-                    self.super_block.inode_start_address() + (index as u64) * INode::size();
+                // Read the inode and add it to the memory map
+                let address = self.inode_index_to_address(index as u64);
+                let bytes = self.read_from_address(address, INode::size())?;
 
-                let bytes = unwrap_error_aidfs_convertible!(self
-                    .handler
-                    .read_bytes(address, INode::size()));
                 inodes.push(match INode::from_bytes(&bytes) {
                     Some(node) => node,
                     None => return Err(VoxFSError::CorruptedINode),
@@ -1409,6 +1413,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
             return None;
         }
 
+        // Otherwise return the first available index
         return match self
             .block_bitmap
             .find_next_0_index_up_to(self.super_block.block_count() as usize)
@@ -1439,5 +1444,28 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
     #[inline]
     fn inode_index_to_address(&self, index: u64) -> u64 {
         return self.super_block.inode_start_address() + index * INode::size();
+    }
+
+    /// Converts tag block index into an address,
+    #[inline]
+    fn tag_index_to_address(&self, index: u64) -> u64 {
+        return self.super_block.tag_start_address() + index * TagBlock::size();
+    }
+
+    #[inline]
+    fn write_to_address(&mut self, address: u64, content: &Vec<u8>) -> Result<(), VoxFSError<E>> {
+        unwrap_return_error_voxfs_convertible!(self.handler.write_bytes(content, address));
+        return Ok(());
+    }
+
+    #[inline]
+    fn read_from_address(
+        &self,
+        address: u64,
+        number_of_bytes: u64,
+    ) -> Result<Vec<u8>, VoxFSError<E>> {
+        return Ok(unwrap_return_error_voxfs_convertible!(self
+            .handler
+            .read_bytes(address, number_of_bytes)));
     }
 }
