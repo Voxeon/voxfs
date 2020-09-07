@@ -139,12 +139,16 @@ impl TagBlock {
         self.index = index;
     }
 
+    pub fn number_of_pointers(&self) -> u16 {
+        return self.number_of_pointers;
+    }
+
     pub fn members(&self) -> [u64; 12] {
         return self.members;
     }
 
-    pub fn number_of_pointers(&self) -> u16 {
-        return self.number_of_pointers;
+    pub fn contains_member(&self, member: &u64) -> bool {
+        return self.members[..self.number_of_pointers as usize].contains(member);
     }
 
     pub fn append_member(&mut self, member: u64) -> bool {
@@ -441,6 +445,12 @@ impl IndirectTagBlock {
             Some(i) => self.set_next(i),
             None => self.set_next(0),
         }
+    }
+
+    /// Returns true if the member is a part of this indirect tag block.
+    /// NOTE: It assumes that in the members vector is ONLY valid members.
+    pub fn contains_member(&self, member: &u64) -> bool {
+        return self.members.contains(member);
     }
 
     pub fn number_of_members(&self) -> u16 {

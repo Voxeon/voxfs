@@ -332,7 +332,7 @@ fn test_open_single_large_file_appended() {
 
     let addition = b"additional data!";
 
-    disk.append_file_bytes(index, &addition.to_vec());
+    disk.append_file_bytes(index, &addition.to_vec()).unwrap();
     let mut comp_inode = None;
 
     for node in disk.list_inodes() {

@@ -297,18 +297,21 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
             }
         }
 
+        // Mark the tag space as free
         if !self.tag_bitmap.set_bit(local_tag.index() as usize, false) {
             return Err(VoxFSError::FailedToFreeTag);
         }
 
+        // Remove from the memory map
         self.tags.remove(local_index);
 
+        // Write the bitmaps to the disk.
         self.write_bitmaps()?;
 
         return Ok(());
     }
 
-    /// List the tags stored on the disk.
+    /// List the tags stored on the disk, this method doesn't reload them.
     pub fn list_tags(&self) -> Vec<TagBlock> {
         return self.tags.clone();
     }
@@ -320,6 +323,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
 
     /// Add an inode to a tag
     pub fn apply_tag(&mut self, tag_index: u64, inode: &INode) -> Result<(), VoxFSError<E>> {
+        // Locate the tag in the memory map from the disk index provided
         let mut tag_self_index = None;
 
         for (i, tag) in self.tags.iter().enumerate() {
@@ -329,11 +333,14 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
             }
         }
 
+        // Unwrap it to ensure we could find it
         let tag_self_index = match tag_self_index {
             Some(i) => i,
             None => return Err(VoxFSError::CouldNotFindTag),
         };
 
+        // This checks if we have enough space in the tagblock itself to add a new member
+        // if not we create a new indirect tag block
         if self.tags[tag_self_index].number_of_pointers() >= TagBlock::MAXIMUM_LOCAL_MEMBERS {
             /*
             Two things must be checked.
@@ -341,10 +348,8 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
             2. Where is a free spot?
              */
 
-            for member in &self.tags[tag_self_index].members() {
-                if *member == inode.index() {
-                    return Err(VoxFSError::TagAlreadyAppliedToINode);
-                }
+            if self.tags[tag_self_index].contains_member(&inode.index()) {
+                return Err(VoxFSError::TagAlreadyAppliedToINode);
             }
 
             let mut next_address = self.tags[tag_self_index].indirect_pointer();
@@ -352,6 +357,8 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
             let mut previous_indirect_location = None;
             let mut free_indirect_tag_address: Option<u64> = None; // This tracks the location of an available spot in an inode
 
+            // NOTE: We don't bail early after finding a spot because we need to still check
+            // every indirect inode to ensure we don't apply the tag twice.
             while next_address.is_some() {
                 let bytes = unwrap_error_aidfs_convertible!(self
                     .handler
@@ -362,15 +369,12 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                     None => return Err(VoxFSError::CorruptedIndirectTag),
                 };
 
-                let members = indirect_tag.members();
-
-                for i in 0..indirect_tag.number_of_members() as usize {
-                    let member = members[i];
-                    if member == inode.index() {
-                        return Err(VoxFSError::TagAlreadyAppliedToINode);
-                    }
+                // Check if we contain thee member already
+                if indirect_tag.contains_member(&inode.index()) {
+                    return Err(VoxFSError::TagAlreadyAppliedToINode);
                 }
 
+                // Only if we haven't found a spot yet add it to this.
                 if free_indirect_tag_address.is_none()
                     && (indirect_tag.number_of_members() as u64)
                         < IndirectTagBlock::max_members_for_blocksize(self.block_size)
@@ -384,6 +388,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                 next_address = nxt;
             }
 
+            // If we didn't find a spot to add this tag... Create a new one!
             if free_indirect_tag_address.is_none() {
                 // Create a new indirect tag
                 let indirect_tag = IndirectTagBlock::new(
@@ -393,20 +398,28 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                     self.block_size,
                 );
 
+                // Find a spot for it
                 let index = match self.find_block() {
                     Some(index) => index,
                     None => return Err(VoxFSError::NotEnoughFreeDataBlocks),
                 };
 
-                let location = self.super_block.data_start_address() + index * self.block_size;
+                let location = self.data_index_to_address(index);
 
+                // Mark the block as taken
                 self.block_bitmap.set_bit(index as usize, true);
+
+                // Write the new indirect block
                 unwrap_error_aidfs_convertible!(self.handler.write_bytes(
                     &indirect_tag.to_bytes_padded(self.block_size as usize),
                     location
                 ));
+
+                // Write the bitmaps
                 self.write_bitmaps()?;
 
+                // We need to point to this new block somehow...
+                // Set the previous indirect block to point to this or the root tag
                 match previous_indirect {
                     Some(mut i) => {
                         i.set_next(location);
@@ -418,6 +431,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                     }
                     None => {
                         self.tags[tag_self_index].set_indirect(location);
+
                         unwrap_error_aidfs_convertible!(self.handler.write_bytes(
                             &self.tags[tag_self_index].to_bytes().to_vec(),
                             self.super_block.tag_start_address()
@@ -426,6 +440,9 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                     }
                 }
             } else {
+                // Otherwise place it in the free spot
+
+                // Read the indirect block and check that it was valid
                 let mut indirect =
                     match IndirectTagBlock::from_bytes(&unwrap_error_aidfs_convertible!(self
                         .handler
@@ -435,23 +452,26 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                         None => return Err(VoxFSError::CorruptedIndirectTag),
                     };
 
+                // Set the blocksize so we can use the append_member function
                 indirect.set_block_size(self.block_size);
 
+                // Append a member
                 if !indirect.append_member(inode.index()) {
                     return Err(VoxFSError::FailedIndirectTagAppend);
                 }
 
+                // rewrite the new indirect block
                 unwrap_error_aidfs_convertible!(self.handler.write_bytes(
                     &indirect.to_bytes_padded(self.block_size as usize),
                     free_indirect_tag_address.unwrap()
                 ));
             }
         } else {
+            // There's enough space to add it to the tag block itself
+
             // Check if this tag has already been applied.
-            for i in 0..self.tags[tag_self_index].number_of_pointers() {
-                if self.tags[tag_self_index].member_at(i) == inode.index() {
-                    return Err(VoxFSError::TagAlreadyAppliedToINode);
-                }
+            if self.tags[tag_self_index].contains_member(&inode.index()) {
+                return Err(VoxFSError::TagAlreadyAppliedToINode);
             }
 
             self.tags[tag_self_index].append_member(inode.index());
