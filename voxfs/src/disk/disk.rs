@@ -1180,15 +1180,11 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                 }
 
                 // Write the new indirect block
-                unwrap_return_error_voxfs_convertible!(self
-                    .handler
-                    .write_bytes(&new_indirect.to_bytes(), indirect_address));
+                self.write_to_address(indirect_address, &new_indirect.to_bytes())?;
             }
 
             // Write as many bytes to the last block as possible
-            unwrap_return_error_voxfs_convertible!(self
-                .handler
-                .write_bytes(&bytes[..amount_available as usize].to_vec(), address));
+            self.write_to_address(address, &bytes[..amount_available as usize].to_vec())?;
 
             // Continue on and write to each of the new extents
             let mut offset = 0;
@@ -1198,15 +1194,9 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                     let bytes_end_index = amount_available + ((offset + 1) * self.block_size); // Add 1 to the offset to account for the fact we want to write block_size
 
                     if bytes_end_index >= bytes.len() as u64 {
-                        unwrap_return_error_voxfs_convertible!(self.handler.write_bytes(
-                            &bytes[amount_available as usize..].to_vec(),
-                            index_address
-                        ));
+                        self.write_to_address(index_address,&bytes[amount_available as usize..].to_vec())?;
                     } else {
-                        unwrap_return_error_voxfs_convertible!(self.handler.write_bytes(
-                            &bytes[amount_available as usize..bytes_end_index as usize].to_vec(),
-                            index_address
-                        ));
+                        self.write_to_address(index_address,&bytes[amount_available as usize..bytes_end_index as usize].to_vec())?;
                     }
 
                     offset += 1;
@@ -1214,10 +1204,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
             }
 
             self.inodes[inode_local_index].increase_file_size(bytes.len() as u64);
-            unwrap_return_error_voxfs_convertible!(self.handler.write_bytes(
-                &self.inodes[inode_local_index].to_bytes().to_vec(),
-                self.inode_index_to_address(self.inodes[inode_local_index].index())
-            ));
+            self.write_to_address(self.inode_index_to_address(self.inodes[inode_local_index].index()), &self.inodes[inode_local_index].to_bytes().to_vec())?;
         }
 
         return Ok(());
@@ -1278,11 +1265,14 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
     fn load_tags(&self) -> Result<Vec<TagBlock>, VoxFSError<E>> {
         let mut tags = Vec::new();
 
-        for i in 0..self.tag_bitmap.len() {
-            if self.tag_bitmap.bit_at(i).unwrap() {
-                let location = self.tag_index_to_address(i as u64);
+        for i in 0..self.super_block.tag_count() {
+            // We unwrap here because we assume the bit exists
+            if self.tag_bitmap.bit_at(i as usize).unwrap() {
+                // Read the tag and add it to the memory map
+                let location = self.tag_index_to_address(i);
                 let bytes = self.read_from_address(location, TagBlock::size())?;
 
+                // Ensure the tag isn't corrupted
                 tags.push(match TagBlock::from_bytes(&bytes) {
                     Some(tag) => tag,
                     None => return Err(VoxFSError::CorruptedTag),
@@ -1297,13 +1287,14 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
     fn load_inodes(&mut self) -> Result<Vec<INode>, VoxFSError<E>> {
         let mut inodes: Vec<INode> = Vec::new();
 
-        for (index, bit) in self.inode_bitmap.flatten_bool().iter().enumerate() {
+        for i in 0..self.super_block.inode_count() {
             // If this bit is marked as taken then read the inode at that location
-            if *bit {
+            if self.inode_bitmap.bit_at(i as usize).unwrap() {
                 // Read the inode and add it to the memory map
-                let address = self.inode_index_to_address(index as u64);
+                let address = self.inode_index_to_address(i);
                 let bytes = self.read_from_address(address, INode::size())?;
 
+                // Ensure the INode was valid
                 inodes.push(match INode::from_bytes(&bytes) {
                     Some(node) => node,
                     None => return Err(VoxFSError::CorruptedINode),
