@@ -398,7 +398,7 @@ fn test_open_single_large_file_appended_large() {
 
     let mut addition = vec![0u8; 4096];
 
-    disk.append_file_bytes(index, &addition);
+    disk.append_file_bytes(index, &addition).unwrap();
     let mut comp_inode = None;
 
     for node in disk.list_inodes() {
@@ -470,7 +470,7 @@ fn test_open_single_large_file_appended_indirect() {
             addition.push((i % 256) as u8);
         }
 
-        disk.append_file_bytes(index, &addition);
+        disk.append_file_bytes(index, &addition).unwrap();
         file_contents.append(&mut addition);
     }
 

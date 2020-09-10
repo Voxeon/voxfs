@@ -30,9 +30,9 @@ pub struct Disk<'a, 'b, E: VoxFSErrorConvertible> {
 
     tag_bitmap: BitMap,
     inode_bitmap: BitMap,
-    pub block_bitmap: BitMap,
+    block_bitmap: BitMap,
 
-    pub block_size: u64,
+    block_size: u64,
 
     blocks_for_tag_map: u64,
     blocks_for_inode_map: u64,
@@ -196,10 +196,12 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         let tag_bitmaps_bytes = unwrap_return_error_voxfs_convertible!(
             handler.read_bytes(block_size, blocks_for_tag_map * block_size)
         );
+
         let inode_bitmaps_bytes = unwrap_return_error_voxfs_convertible!(handler.read_bytes(
             block_size + blocks_for_tag_map * block_size,
             blocks_for_inode_map * block_size
         ));
+
         let data_bitmaps_bytes = unwrap_return_error_voxfs_convertible!(handler.read_bytes(
             block_size + (blocks_for_tag_map + blocks_for_inode_map) * block_size,
             blocks_for_block_map * block_size
@@ -844,7 +846,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                     None => return Err(VoxFSError::NotEnoughFreeDataBlocks),
                 };
 
-                let address = self.super_block.data_start_address() + block_index * self.block_size;
+                let address = self.data_index_to_address(block_index);
                 let block = IndirectINode::new(
                     address_group
                         .iter()
@@ -856,9 +858,8 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                     previous_address,
                     self.block_size,
                 );
-                unwrap_return_error_voxfs_convertible!(self
-                    .handler
-                    .write_bytes(&block.to_bytes(), address));
+
+                self.write_to_address(address, &block.to_bytes())?;
                 previous_address = address;
                 self.block_bitmap.set_bit(block_index as usize, true);
             }
@@ -982,7 +983,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         num_bytes: u64,
     ) -> Result<Vec<u8>, VoxFSError<E>> {
         // Locate the INode object in the memory map
-        let mut inode = self.inodes[self.locate_inode(inode_index)?];
+        let inode = self.inodes[self.locate_inode(inode_index)?];
 
         let mut result_bytes = Vec::new();
 
@@ -1305,22 +1306,14 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
     /// Writes the block availability bit maps
     fn write_bitmaps(&mut self) -> Result<(), VoxFSError<E>> {
         // Write the tags bitmap
-        unwrap_return_error_voxfs_convertible!(self
-            .handler
-            .write_bytes(&self.tag_bitmap.as_bytes(), self.block_size)); // We start at blocksize because of the superblock
+        self.write_to_address(self.block_size, &self.tag_bitmap.as_bytes())?; // We start at blocksize because of the superblock
 
         // Write the inodes bitmap
-        unwrap_return_error_voxfs_convertible!(self.handler.write_bytes(
-            &self.inode_bitmap.as_bytes(),
-            self.block_size + self.blocks_for_tag_map * self.block_size
-        )); // We start at blocksize because of the superblock then skip the tag map
+        self.write_to_address(self.block_size + self.blocks_for_tag_map * self.block_size, &self.inode_bitmap.as_bytes())?; // We start at blocksize because of the superblock then skip the tag map
 
         // Write the data bitmap
-        unwrap_return_error_voxfs_convertible!(self.handler.write_bytes(
-            &self.block_bitmap.as_bytes(),
-            self.block_size
-                + (self.blocks_for_tag_map + self.blocks_for_inode_map) * self.block_size
-        )); // We start at blocksize because of the superblock then skip the tag map and inode map
+        self.write_to_address(self.block_size
+                                  + (self.blocks_for_tag_map + self.blocks_for_inode_map) * self.block_size,&self.block_bitmap.as_bytes())?; // We start at blocksize because of the superblock then skip the tag map and inode map
 
         return Ok(());
     }
@@ -1542,8 +1535,10 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
     /// Write data to an address on the disk
     #[inline]
     fn write_to_address(&mut self, address: u64, content: &Vec<u8>) -> Result<(), VoxFSError<E>> {
-        unwrap_return_error_voxfs_convertible!(self.handler.write_bytes(content, address));
-        return Ok(());
+        match self.handler.write_bytes(content, address) {
+            Ok(_) => return Ok(()),
+            Err(e) => return Err(e.into_voxfs_error())
+        }
     }
 
     /// Read data from an address on the disk.
@@ -1553,9 +1548,10 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         address: u64,
         number_of_bytes: u64,
     ) -> Result<Vec<u8>, VoxFSError<E>> {
-        return Ok(unwrap_return_error_voxfs_convertible!(self
-            .handler
-            .read_bytes(address, number_of_bytes)));
+        match self.handler.read_bytes(address, number_of_bytes) {
+            Ok(b) => return Ok(b),
+            Err(e) => return Err(e.into_voxfs_error())
+        }
     }
 
     /// Read blocks between two data indexes, INCLUSIVE at both ends
