@@ -49,9 +49,9 @@ fn test_tags() {
         .unwrap(),
     );
 
-    disk.apply_tag(0, &comp_nodes[0]).unwrap();
-    disk.apply_tag(0, &comp_nodes[1]).unwrap();
-    disk.apply_tag(0, &comp_nodes[2]).unwrap();
+    disk.apply_tag(0, comp_nodes[0].index()).unwrap();
+    disk.apply_tag(0, comp_nodes[1].index()).unwrap();
+    disk.apply_tag(0, comp_nodes[2].index()).unwrap();
 
     assert_eq!(disk.list_tag_nodes(0).unwrap(), comp_nodes);
 }
@@ -79,7 +79,7 @@ fn test_tags_12() {
             .unwrap(),
         );
 
-        disk.apply_tag(0, &comp_nodes[i]).unwrap();
+        disk.apply_tag(0, comp_nodes[i].index()).unwrap();
     }
 
     assert_eq!(disk.list_tag_nodes(0).unwrap(), comp_nodes);
@@ -108,13 +108,13 @@ fn test_tags_duplicate() {
             .unwrap(),
         );
 
-        disk.apply_tag(0, &comp_nodes[i]).unwrap();
+        disk.apply_tag(0, comp_nodes[i].index()).unwrap();
     }
 
     assert_eq!(disk.list_tag_nodes(0).unwrap(), comp_nodes);
 
     assert_eq!(
-        disk.apply_tag(0, &comp_nodes[0]).unwrap_err(),
+        disk.apply_tag(0, comp_nodes[0].index()).unwrap_err(),
         VoxFSError::<common::Error>::TagAlreadyAppliedToINode
     );
 }
@@ -142,7 +142,7 @@ fn test_tags_indirect() {
             .unwrap(),
         );
 
-        disk.apply_tag(0, &comp_nodes[i]).unwrap();
+        disk.apply_tag(0, comp_nodes[i].index()).unwrap();
     }
 
     assert_eq!(disk.list_tag_nodes(0).unwrap(), comp_nodes);
@@ -171,7 +171,7 @@ fn test_tags_indirects() {
             .unwrap(),
         );
 
-        disk.apply_tag(0, &comp_nodes[i]).unwrap();
+        disk.apply_tag(0, comp_nodes[i].index()).unwrap();
     }
 
     assert_eq!(disk.list_tag_nodes(0).unwrap(), comp_nodes);
@@ -228,9 +228,12 @@ fn test_custom_tag() {
         .unwrap(),
     );
 
-    disk.apply_tag(custom_tag.index(), &comp_nodes[0]).unwrap();
-    disk.apply_tag(custom_tag.index(), &comp_nodes[1]).unwrap();
-    disk.apply_tag(custom_tag.index(), &comp_nodes[2]).unwrap();
+    disk.apply_tag(custom_tag.index(), comp_nodes[0].index())
+        .unwrap();
+    disk.apply_tag(custom_tag.index(), comp_nodes[1].index())
+        .unwrap();
+    disk.apply_tag(custom_tag.index(), comp_nodes[2].index())
+        .unwrap();
 
     assert_eq!(disk.list_tag_nodes(custom_tag.index()).unwrap(), comp_nodes);
 }
@@ -286,11 +289,15 @@ fn test_remove_tag() {
         .unwrap(),
     );
 
-    disk.apply_tag(custom_tag.index(), &comp_nodes[0]).unwrap();
-    disk.apply_tag(custom_tag.index(), &comp_nodes[1]).unwrap();
-    disk.apply_tag(custom_tag.index(), &comp_nodes[2]).unwrap();
+    disk.apply_tag(custom_tag.index(), comp_nodes[0].index())
+        .unwrap();
+    disk.apply_tag(custom_tag.index(), comp_nodes[1].index())
+        .unwrap();
+    disk.apply_tag(custom_tag.index(), comp_nodes[2].index())
+        .unwrap();
 
-    disk.remove_tag_from_inode(1, &comp_nodes[0]).unwrap();
+    disk.remove_tag_from_inode(1, comp_nodes[0].index())
+        .unwrap();
 
     assert_eq!(disk.list_tags().len(), 2);
     let inodes = disk.list_tag_nodes(1).unwrap();
@@ -327,12 +334,13 @@ fn test_remove_from_indirect_tag() {
             .unwrap(),
         );
 
-        disk.apply_tag(custom_tag.index(), &comp_nodes[i]).unwrap();
+        disk.apply_tag(custom_tag.index(), comp_nodes[i].index())
+            .unwrap();
     }
 
-    disk.remove_tag_from_inode(custom_tag.index(), &comp_nodes.remove(0))
+    disk.remove_tag_from_inode(custom_tag.index(), comp_nodes.remove(0).index())
         .unwrap();
-    disk.remove_tag_from_inode(custom_tag.index(), &comp_nodes.pop().unwrap())
+    disk.remove_tag_from_inode(custom_tag.index(), comp_nodes.pop().unwrap().index())
         .unwrap();
 
     assert_eq!(comp_nodes, disk.list_tag_nodes(custom_tag.index()).unwrap());
@@ -367,14 +375,15 @@ fn test_remove_from_large_tag() {
             .unwrap(),
         );
 
-        disk.apply_tag(custom_tag.index(), &comp_nodes[i]).unwrap();
+        disk.apply_tag(custom_tag.index(), comp_nodes[i].index())
+            .unwrap();
     }
 
     assert_eq!(disk.available_data_blocks(), 349);
 
     // We will remove all the middle block.
     for _ in 0..509 {
-        disk.remove_tag_from_inode(custom_tag.index(), &comp_nodes.remove(12))
+        disk.remove_tag_from_inode(custom_tag.index(), comp_nodes.remove(12).index())
             .unwrap();
     }
 
@@ -433,9 +442,12 @@ fn test_delete_tag() {
         .unwrap(),
     );
 
-    disk.apply_tag(custom_tag.index(), &comp_nodes[0]).unwrap();
-    disk.apply_tag(custom_tag.index(), &comp_nodes[1]).unwrap();
-    disk.apply_tag(custom_tag.index(), &comp_nodes[2]).unwrap();
+    disk.apply_tag(custom_tag.index(), comp_nodes[0].index())
+        .unwrap();
+    disk.apply_tag(custom_tag.index(), comp_nodes[1].index())
+        .unwrap();
+    disk.apply_tag(custom_tag.index(), comp_nodes[2].index())
+        .unwrap();
 
     disk.delete_tag(custom_tag.index()).unwrap();
 
@@ -477,7 +489,8 @@ fn test_delete_large_tag() {
             .unwrap(),
         );
 
-        disk.apply_tag(custom_tag.index(), &comp_nodes[i]).unwrap();
+        disk.apply_tag(custom_tag.index(), comp_nodes[i].index())
+            .unwrap();
     }
 
     disk.delete_tag(custom_tag.index()).unwrap();

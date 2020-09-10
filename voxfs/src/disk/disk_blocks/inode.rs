@@ -519,6 +519,7 @@ impl IndirectINode {
         return self.maximum_extents;
     }
 
+    /// Sets the maximum number of extents for this blocksize. Allows for the use of append.
     pub fn set_maximum_extents_blocksize(&mut self, blocksize: u64) {
         self.maximum_extents = Self::max_extents_for_blocksize(blocksize);
     }

@@ -229,7 +229,7 @@ fn test_open_multiple_small_files_tagged() {
             .unwrap(),
         );
 
-        disk.apply_tag(0, &comp_inodes[i]).unwrap();
+        disk.apply_tag(0, comp_inodes[i].index()).unwrap();
     }
 
     drop(disk);
@@ -270,11 +270,11 @@ fn test_open_multiple_small_files_tag_removed() {
             .unwrap(),
         );
 
-        disk.apply_tag(0, &comp_inodes[i]).unwrap();
+        disk.apply_tag(0, comp_inodes[i].index()).unwrap();
     }
 
     for _ in 0..510 {
-        disk.remove_tag_from_inode(0, &comp_inodes.remove(12))
+        disk.remove_tag_from_inode(0, comp_inodes.remove(12).index())
             .unwrap();
     }
 

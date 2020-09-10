@@ -67,7 +67,7 @@ fn test_file_size() {
         )
         .unwrap();
 
-    let file_size = disk.file_size(&large_inode).unwrap();
+    let file_size = disk.file_size(large_inode.index()).unwrap();
     assert_eq!(file_size.actual_size, 4096 * 6 + 33);
     assert_eq!(file_size.physical_size, 4096 * 7);
 }
