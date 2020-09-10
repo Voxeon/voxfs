@@ -9,9 +9,6 @@ use alloc::{vec, vec::Vec};
 
 const DEFAULT_BLOCK_SIZE: u64 = 4_096; // In bytes. 4KiB.
 
-// TODO List
-// TODO: 1. Support overwriting files.
-
 pub struct FileSize {
     pub physical_size: u64,
     pub actual_size: u64,
