@@ -498,3 +498,114 @@ fn test_open_single_large_file_appended_indirect() {
 
     assert_eq!(file_contents, disk.read_file(comp_inode.index()).unwrap());
 }
+
+#[test]
+fn test_open_single_file_deleted() {
+    let mut handler = Handler::new(4096 * 30); // Disk size of 120 KiB
+    let mut manager = Manager::new();
+
+    let root_tag = TagBlock::new(
+        0,
+        "root",
+        TagFlags::new(true, true),
+        manager.current_time(),
+        0x0,
+        0x0,
+        [0u64; 12],
+    );
+
+    let mut disk =
+        Disk::make_new_filesystem_with_root(&mut handler, &mut manager, root_tag.clone()).unwrap();
+
+    let file_contents = "The file contents are testing, 1234, ok so this should be one block!"
+        .as_bytes()
+        .to_vec();
+
+    let comp_inode = disk
+        .create_new_file(
+            "test_file",
+            INodeFlags::new(true, true, true, false),
+            file_contents.clone(),
+        )
+        .unwrap();
+
+    let available_blocks = disk.available_data_blocks();
+
+    let index = disk
+        .create_new_file(
+            "test_file",
+            INodeFlags::new(true, true, true, false),
+            file_contents.clone(),
+        )
+        .unwrap().index();
+
+    assert_ne!(available_blocks, disk.available_data_blocks());
+    disk.delete_file(index).unwrap();
+    assert_eq!(available_blocks, disk.available_data_blocks());
+
+    drop(disk);
+
+    let disk = Disk::open_disk(&mut handler, &mut manager).unwrap();
+    let tags = disk.list_tags();
+    let inodes = disk.list_inodes();
+
+    assert_eq!(tags.len(), 1);
+    assert_eq!(tags[0], root_tag);
+    assert_eq!(inodes.len(), 1);
+    assert_eq!(inodes[0], comp_inode);
+
+    assert_eq!(file_contents, disk.read_file(comp_inode.index()).unwrap());
+    assert_eq!(available_blocks, disk.available_data_blocks());
+}
+
+#[test]
+fn test_fsopen_large_file_deleted() {
+    let mut handler = Handler::new(4096 * 30); // Disk size of 120 KiB
+    let mut manager = Manager::new();
+
+    let root_tag = TagBlock::new(
+        0,
+        "root",
+        TagFlags::new(true, true),
+        manager.current_time(),
+        0x0,
+        0x0,
+        [0u64; 12],
+    );
+
+    let mut disk =
+        Disk::make_new_filesystem_with_root(&mut handler, &mut manager, root_tag.clone()).unwrap();
+
+    let mut file_contents= Vec::new();
+
+    for i in 0..5000 {
+        file_contents.push((i % 256) as u8);
+    }
+
+    let available_blocks = disk.available_data_blocks();
+
+    let index = disk
+        .create_new_file(
+            "test_file",
+            INodeFlags::new(true, true, true, false),
+            file_contents.clone(),
+        )
+        .unwrap().index();
+
+
+    assert_ne!(available_blocks, disk.available_data_blocks());
+    disk.delete_file(index).unwrap();
+    assert_eq!(available_blocks, disk.available_data_blocks());
+
+    drop(disk);
+
+    let disk = Disk::open_disk(&mut handler, &mut manager).unwrap();
+    let tags = disk.list_tags();
+    let inodes = disk.list_inodes();
+
+    assert_eq!(tags.len(), 1);
+    assert_eq!(tags[0], root_tag);
+    assert_eq!(inodes.len(), 0);
+
+    assert_eq!(available_blocks, disk.available_data_blocks());
+}

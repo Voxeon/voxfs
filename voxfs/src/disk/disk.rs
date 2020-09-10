@@ -10,12 +10,7 @@ use alloc::{vec, vec::Vec};
 const DEFAULT_BLOCK_SIZE: u64 = 4_096; // In bytes. 4KiB.
 
 // TODO List
-// TODO: 1. Support deleting files
-// - TODO: 2. Support deleting tags
-// - TODO: 3. Support removing file from a tag
-// - TODO: 4. Support appending to files.
-// TODO: 5. Support overwriting files.
-// - TODO: 6. Remove any explicit passing of inodes to requiring disk indexes
+// TODO: 1. Support overwriting files.
 
 pub struct FileSize {
     pub physical_size: u64,
@@ -1063,6 +1058,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         return Ok(result_bytes);
     }
 
+    /// Appends bytes to a file.
     pub fn append_file_bytes(
         &mut self,
         inode_index: u64,
@@ -1299,6 +1295,82 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
                 &self.inodes[inode_local_index].to_bytes().to_vec(),
             )?;
         }
+
+        return Ok(());
+    }
+
+    /// Deletes a file.
+    pub fn delete_file(&mut self, inode_index: u64) -> Result<(), VoxFSError<E>> {
+        let local_index = self.locate_inode(inode_index)?;
+        let inode = self.inodes[local_index];
+
+        let mut next = inode.indirect_pointer();
+        let mut extents = Vec::new();
+        let mut indirect_indexes = Vec::new();
+
+        while next.is_some() {
+            // Read each indirect in
+            let bytes = self.read_from_address(next.unwrap(), self.block_size)?;
+            let indirect = match IndirectINode::from_bytes(&bytes) {
+                Some(i) => i,
+                None => return Err(VoxFSError::CorruptedIndirectINode)
+            };
+
+            // Since next is an address we need a data block index
+            let data_block_index = self.address_to_data_index(next.unwrap());
+            let mut ind_extents = indirect.extents();
+
+            // Track the extents and indirect block indices to mark as free
+            extents.append(&mut ind_extents);
+            indirect_indexes.push(data_block_index);
+
+            next = indirect.next();
+        }
+
+        extents.extend_from_slice(&inode.blocks());
+
+        // We need to ensure this inode isn't being pointed to by any tags.
+
+        // I don't know a more efficient method of doing this :/
+        let indices: Vec<u64> = self.tags.iter().map(|t| t.index()).collect();
+        for index in indices {
+            match self.remove_tag_from_inode(index, inode.index()) {
+                Ok(_) => (),
+                Err(e) => {
+                    match e {
+                        VoxFSError::TagNotAppliedToINode => (),
+                        _ => return Err(e),
+                    }
+                }
+            }
+        }
+
+        // Mark each indirect index as free
+        for index in indirect_indexes {
+            if !self.block_bitmap.set_bit(index as usize, false) {
+                return Err(VoxFSError::FailedToFreeBlock);
+            }
+        }
+
+        // Mark the blocks in each extent as free
+        for extent in &extents {
+            for i in extent.start..=extent.end {
+                if !self.block_bitmap.set_bit(i as usize, false) {
+                    return Err(VoxFSError::FailedToFreeBlock);
+                }
+            }
+        }
+
+        // Mark the inode as free
+        if !self.inode_bitmap.set_bit(inode.index() as usize, false) {
+            return Err(VoxFSError::FailedToFreeINode);
+        }
+
+        // Remove it from the memory map
+        self.inodes.remove(local_index);
+
+        // Update the disk
+        self.write_bitmaps()?;
 
         return Ok(());
     }
