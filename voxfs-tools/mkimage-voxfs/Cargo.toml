@@ -8,4 +8,5 @@ edition = "2018"
 
 [dependencies]
 voxfs = { path = "../../voxfs" }
+voxfs-tool-lib = { path = "../voxfs-tool-lib" }
 clap = "2.33"
