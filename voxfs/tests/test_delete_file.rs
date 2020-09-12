@@ -56,7 +56,8 @@ fn test_delete_huge_file() {
         INodeFlags::new(true, true, true, false),
         file_contents.clone(),
     )
-        .unwrap().index();
+    .unwrap()
+    .index();
 
     let index = disk.list_inodes()[0].index();
     disk.delete_file(index).unwrap();
@@ -90,7 +91,8 @@ fn test_delete_huge_file_appends() {
         INodeFlags::new(true, true, true, false),
         file_contents.clone(),
     )
-        .unwrap().index();
+    .unwrap()
+    .index();
 
     let index = disk.list_inodes()[0].index();
 
@@ -126,32 +128,37 @@ fn test_delete_file_tags() {
         .as_bytes()
         .to_vec();
 
-
     disk.create_new_file(
         "test_file",
         INodeFlags::new(true, true, true, false),
         file_contents.clone(),
     )
-        .unwrap();
+    .unwrap();
 
     disk.create_new_file(
         "test_file2",
         INodeFlags::new(true, true, true, false),
         file_contents.clone(),
     )
-        .unwrap();
+    .unwrap();
 
     disk.create_new_file(
         "test_file3",
         INodeFlags::new(true, true, true, false),
         file_contents.clone(),
     )
-        .unwrap();
+    .unwrap();
 
-    let tag_index = disk.create_new_tag("test", TagFlags::new(true, true)).unwrap().index();
-    disk.apply_tag(tag_index,disk.list_inodes()[0].index()).unwrap();
-    disk.apply_tag(tag_index,disk.list_inodes()[1].index()).unwrap();
-    disk.apply_tag(tag_index,disk.list_inodes()[2].index()).unwrap();
+    let tag_index = disk
+        .create_new_tag("test", TagFlags::new(true, true))
+        .unwrap()
+        .index();
+    disk.apply_tag(tag_index, disk.list_inodes()[0].index())
+        .unwrap();
+    disk.apply_tag(tag_index, disk.list_inodes()[1].index())
+        .unwrap();
+    disk.apply_tag(tag_index, disk.list_inodes()[2].index())
+        .unwrap();
 
     let index = disk.list_inodes()[1].index();
     assert_eq!(disk.list_tag_nodes(tag_index).unwrap().len(), 3);

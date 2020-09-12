@@ -1,3 +1,4 @@
+use std::fmt::Formatter;
 use voxfs::VoxFSErrorConvertible;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -7,7 +8,9 @@ pub struct MKImageError {
 
 impl MKImageError {
     pub fn new(message: &str) -> Self {
-        return MKImageError {message: String::from(message)};
+        return MKImageError {
+            message: String::from(message),
+        };
     }
 
     pub fn get_message(&self) -> String {
@@ -16,3 +19,9 @@ impl MKImageError {
 }
 
 impl VoxFSErrorConvertible for MKImageError {}
+
+impl std::fmt::Display for MKImageError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        return write!(f, "{:?}", self);
+    }
+}

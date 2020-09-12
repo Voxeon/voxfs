@@ -1310,7 +1310,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
             let bytes = self.read_from_address(next.unwrap(), self.block_size)?;
             let indirect = match IndirectINode::from_bytes(&bytes) {
                 Some(i) => i,
-                None => return Err(VoxFSError::CorruptedIndirectINode)
+                None => return Err(VoxFSError::CorruptedIndirectINode),
             };
 
             // Since next is an address we need a data block index
@@ -1333,12 +1333,10 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         for index in indices {
             match self.remove_tag_from_inode(index, inode.index()) {
                 Ok(_) => (),
-                Err(e) => {
-                    match e {
-                        VoxFSError::TagNotAppliedToINode => (),
-                        _ => return Err(e),
-                    }
-                }
+                Err(e) => match e {
+                    VoxFSError::TagNotAppliedToINode => (),
+                    _ => return Err(e),
+                },
             }
         }
 
@@ -1378,11 +1376,17 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         self.write_to_address(self.block_size, &self.tag_bitmap.as_bytes())?; // We start at blocksize because of the superblock
 
         // Write the inodes bitmap
-        self.write_to_address(self.block_size + self.blocks_for_tag_map * self.block_size, &self.inode_bitmap.as_bytes())?; // We start at blocksize because of the superblock then skip the tag map
+        self.write_to_address(
+            self.block_size + self.blocks_for_tag_map * self.block_size,
+            &self.inode_bitmap.as_bytes(),
+        )?; // We start at blocksize because of the superblock then skip the tag map
 
         // Write the data bitmap
-        self.write_to_address(self.block_size
-                                  + (self.blocks_for_tag_map + self.blocks_for_inode_map) * self.block_size,&self.block_bitmap.as_bytes())?; // We start at blocksize because of the superblock then skip the tag map and inode map
+        self.write_to_address(
+            self.block_size
+                + (self.blocks_for_tag_map + self.blocks_for_inode_map) * self.block_size,
+            &self.block_bitmap.as_bytes(),
+        )?; // We start at blocksize because of the superblock then skip the tag map and inode map
 
         return Ok(());
     }
@@ -1606,7 +1610,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
     fn write_to_address(&mut self, address: u64, content: &Vec<u8>) -> Result<(), VoxFSError<E>> {
         match self.handler.write_bytes(content, address) {
             Ok(_) => return Ok(()),
-            Err(e) => return Err(e.into_voxfs_error())
+            Err(e) => return Err(e.into_voxfs_error()),
         }
     }
 
@@ -1619,7 +1623,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
     ) -> Result<Vec<u8>, VoxFSError<E>> {
         match self.handler.read_bytes(address, number_of_bytes) {
             Ok(b) => return Ok(b),
-            Err(e) => return Err(e.into_voxfs_error())
+            Err(e) => return Err(e.into_voxfs_error()),
         }
     }
 

@@ -537,7 +537,8 @@ fn test_open_single_file_deleted() {
             INodeFlags::new(true, true, true, false),
             file_contents.clone(),
         )
-        .unwrap().index();
+        .unwrap()
+        .index();
 
     assert_ne!(available_blocks, disk.available_data_blocks());
     disk.delete_file(index).unwrap();
@@ -576,7 +577,7 @@ fn test_fsopen_large_file_deleted() {
     let mut disk =
         Disk::make_new_filesystem_with_root(&mut handler, &mut manager, root_tag.clone()).unwrap();
 
-    let mut file_contents= Vec::new();
+    let mut file_contents = Vec::new();
 
     for i in 0..5000 {
         file_contents.push((i % 256) as u8);
@@ -590,8 +591,8 @@ fn test_fsopen_large_file_deleted() {
             INodeFlags::new(true, true, true, false),
             file_contents.clone(),
         )
-        .unwrap().index();
-
+        .unwrap()
+        .index();
 
     assert_ne!(available_blocks, disk.available_data_blocks());
     disk.delete_file(index).unwrap();
