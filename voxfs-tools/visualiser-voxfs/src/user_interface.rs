@@ -79,7 +79,7 @@ impl UI {
         &mut self,
         bytes: &Vec<u8>,
         current_offset: u64,
-        selected_address: u64,
+        selected_offset: u64,
     ) -> Result<(), VisualiserError> {
         let default_style = self.default_style;
         let highlight_style = self.highlight_style;
@@ -99,17 +99,8 @@ impl UI {
             // 00000010    xx  xx  xx  xx  xx  xx  xx  xx  xx  xx  xx  xx  xx  xx  xx  xx
 
             let mut state = TableState::default();
-            //state.select(Some((cell_x * cell_y) as usize));
-
-            // let block = List::new(items)
-            //     .block(Block::default().title("Main Menu").borders(Borders::ALL))
-            //     .style(Style::default().fg(Color::White))
-            //     .highlight_style(
-            //         Style::default()
-            //             .add_modifier(Modifier::ITALIC)
-            //             .add_modifier(Modifier::REVERSED),
-            //     )
-            //     .highlight_symbol(">> ");
+            state.select(Some(1));
+            state.select(Some(((selected_offset - current_offset)/0x10) as usize));
 
             let header = [
                 "Offset    ",
@@ -132,12 +123,18 @@ impl UI {
             ];
 
             let mut rows = Vec::new();
-            let mut current_row = Vec::new();
+            let mut iteration_offset = current_offset;
+            let mut current_row = vec![format!("{:08x}", iteration_offset)];
 
             for byte in bytes {
-                Row::Data(["Row41", "ff", "ff", "ef"].into_iter());
-                if current_row.len() >= 16 {}
-
+                //Row::Data(["Row41", "ff", "ff", "ef"].into_iter());
+                if current_row.len() >= 17 {
+                    rows.push(Row::Data(current_row.into_iter()));
+                    iteration_offset += 0x10;
+                    current_row = vec![format!("{:08x}", iteration_offset), format!("{:02x}", *byte)];
+                } else {
+                    current_row.push(format!("{:02x}", *byte));
+                }
             }
 
             let mut widths = [Constraint::Length(2); 17];
@@ -164,8 +161,7 @@ impl UI {
                 .block(Block::default().title("Keys").borders(Borders::ALL));
 
             f.render_widget(footer_block, rects[1]);
-            f.render_widget(block, rects[0])
-            //f.render_stateful_widget(t, f.size(), &mut state);
+            f.render_stateful_widget(block, rects[0], &mut state);
         }) {
             Ok(_) => (),
             Err(e) => {
@@ -195,5 +191,10 @@ impl UI {
             Ok(t) => return Some(t),
             Err(_) => return None,
         }
+    }
+
+    /// Shows the cursor, ignoring any errors
+    pub fn show_cursor(&mut self) {
+        ignore_result!(self.terminal.show_cursor());
     }
 }

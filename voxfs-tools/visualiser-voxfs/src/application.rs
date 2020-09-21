@@ -1,9 +1,10 @@
 use crate::{VisualiserError, UI};
-use crossterm::event::{Event, KeyCode, KeyEvent};
+use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use std::path::Path;
 use voxfs::{Disk, DiskHandler};
 use voxfs_tool_lib::{Handler, MKImageError, Manager};
+use std::process::exit;
 
 enum CurrentMenu {
     Main,
@@ -70,6 +71,7 @@ impl Application {
         let res = self.main_loop(disk);
         self.ui.try_clear();
         ignore_result!(disable_raw_mode());
+        self.ui.show_cursor();
 
         return res;
     }
@@ -179,9 +181,15 @@ impl Application {
             Err(e) => return Err(VisualiserError::new(&format!("{}", e))),
         };
 
-        match event {
-            Event::Key(kv) => return Ok(Some(kv)),
+        let key = match event {
+            Event::Key(kv) => kv,
             _ => return Ok(None),
+        };
+
+        if key == KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL) {
+            return Err(VisualiserError::new("SIGINT was found"));
+        } else {
+            return Ok(Some(key));
         }
     }
 }
