@@ -8,6 +8,8 @@ edition = "2018"
 
 [dependencies]
 voxfs = { path = "../../voxfs" }
+voxfs-tool-lib = { path = "../voxfs-tool-lib" }
 clap = "2.33"
 crossterm = "0.17"
-tui = { version = "0.10", default-features = false, features = ['crossterm'] }
+hex = "0.4"
+tui = { version = "0.11", default-features = false, features = ['crossterm'] }

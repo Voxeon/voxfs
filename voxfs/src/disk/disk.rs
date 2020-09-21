@@ -153,6 +153,11 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         return Ok(new_disk);
     }
 
+    /// Gives access to the disk handler
+    pub fn handler(&mut self) -> &mut dyn DiskHandler<E> {
+        return self.handler;
+    }
+
     /// Returns the number of available data blocks
     pub fn available_data_blocks(&self) -> u64 {
         return self

@@ -2,6 +2,7 @@ mod error;
 mod handler;
 mod manager;
 
+pub use error::MKImageError;
 pub use handler::Handler;
 pub use manager::Manager;
 
