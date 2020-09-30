@@ -34,5 +34,7 @@ pub enum VoxFSError<E> {
     CouldNotFindINode,
     FailedToSetBitmapBit,
     ExpectedIndirectNode,
+    InvalidTagName,
+    InvalidFileName,
     DiskError(E),
 }

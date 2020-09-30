@@ -10,5 +10,5 @@ edition = "2018"
 voxfs = { path = "../../voxfs" }
 voxfs-tool-lib = { path = "../voxfs-tool-lib" }
 clap = "2.33"
-crossterm = "0.17"
-tui = { version = "0.11", default-features = false, features = ['crossterm'] }
+crossterm = "0.18"
+tui = { version = "0.12", default-features = false, features = ['crossterm'] }

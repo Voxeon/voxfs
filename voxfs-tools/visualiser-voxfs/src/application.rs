@@ -2,13 +2,13 @@ use crate::{VisualiserError, UI};
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use std::path::Path;
-use voxfs::{Disk, DiskHandler};
+use voxfs::{Disk, DiskHandler, FORBIDDEN_CHARACTERS};
 use voxfs_tool_lib::{Handler, MKImageError, Manager};
-use std::process::exit;
 
 enum CurrentMenu {
     Main,
     RawDiskRoot,
+    DiskInfo,
 }
 
 pub struct Application {
@@ -81,6 +81,7 @@ impl Application {
             match self.current_menu {
                 CurrentMenu::Main => self.main_menu()?,
                 CurrentMenu::RawDiskRoot => self.raw_disk_root(&mut disk)?,
+                CurrentMenu::DiskInfo => self.disk_info(&mut disk)?,
             }
         }
 
@@ -91,26 +92,33 @@ impl Application {
         // NOTE: We can assume disk_size is not None because we must have a disk size to call this method before hand
         let mut cont = true;
         let mut starting_address = 0;
-
-        let (max_cols, max_rows) = match UI::get_size() {
-            Some(p) => p,
-            None => {
-                return Err(VisualiserError::new_internal(
-                    "Couldn't determine the terminal's size",
-                ))
-            }
-        };
-
-        let bytes_per_render = (max_cols as usize) * (max_rows as usize);
-
-        let mut current_address = 0;
+        let mut selected_row = 0;
+        let mut force_redraw = true;
 
         while cont {
-            let start = starting_address;
-            let mut end = start + bytes_per_render;
+            let (_, max_rows) = match UI::get_size() {
+                Some(p) => p,
+                None => {
+                    return Err(VisualiserError::new_internal(
+                        "Couldn't determine the terminal's size",
+                    ))
+                }
+            };
+
+            let table_rows = max_rows - 7;
+
+            if selected_row >= table_rows {
+                selected_row = table_rows - 1;
+            }
+
+            let bytes_per_render = (table_rows as usize) * 16;
+
+            let mut start = starting_address;
+            let mut end = starting_address + bytes_per_render;
 
             if end > self.disk_size.unwrap() as usize {
                 end = self.disk_size.unwrap() as usize;
+                start = end - bytes_per_render;
             }
 
             let bytes = match disk
@@ -121,19 +129,41 @@ impl Application {
                 Err(_) => return Err(VisualiserError::new("Could not read the file.")),
             };
 
-            self.ui
-                .render_raw_disk_ui(&bytes, 0, current_address)?;
+            self.ui.render_raw_disk_ui(
+                &bytes,
+                start as u64,
+                selected_row as usize,
+                force_redraw,
+            )?;
+            force_redraw = false;
 
             let key = self.blocking_read_key()?;
+
             match key {
                 Some(k) => {
-                    if k.code == KeyCode::Char('q') {
-                        return Ok(());
+                    if k.code == KeyCode::Esc {
+                        cont = false;
+                    } else if k.code == KeyCode::Down {
+                        if selected_row < table_rows - 1 {
+                            selected_row += 1;
+                        } else {
+                            starting_address += 0x10;
+                            if starting_address + bytes_per_render
+                                > self.disk_size.unwrap() as usize
+                            {
+                                starting_address = ((self.disk_size.unwrap() as usize
+                                    - bytes_per_render)
+                                    & (usize::MAX - 0xf))
+                                    as usize;
+                            }
+                        }
                     }
                 }
                 None => (),
             }
         }
+
+        self.current_menu = CurrentMenu::Main;
 
         return Ok(());
     }
@@ -142,9 +172,11 @@ impl Application {
         let mut cont = true;
         let mut selected_index = 0; // Quit is the last index
         let number_of_options = 3;
+        let mut force_redraw = true;
 
         while cont {
-            self.ui.render_main_menu(selected_index)?;
+            self.ui.render_main_menu(selected_index, force_redraw)?;
+            force_redraw = false;
             let event = self.blocking_read_key()?;
 
             match event {
@@ -155,6 +187,9 @@ impl Application {
                             cont = false; // Time to quit
                         } else if selected_index == 1 {
                             self.current_menu = CurrentMenu::RawDiskRoot;
+                            cont = false;
+                        } else if selected_index == 0 {
+                            self.current_menu = CurrentMenu::DiskInfo;
                             cont = false;
                         }
                     } else if k.code == KeyCode::Down {
@@ -173,6 +208,88 @@ impl Application {
         }
 
         return Ok(());
+    }
+
+    fn disk_info(&mut self, disk: &mut Disk<MKImageError>) -> Result<(), VisualiserError> {
+        let disk_info = disk.disk_info();
+        let mut force_redraw = true;
+        let mut cont = true;
+
+        while cont {
+            self.ui.render_disk_info(&disk_info, force_redraw)?;
+            force_redraw = false;
+
+            let input = self.blocking_read_key()?;
+            match input {
+                Some(k) => {
+                    if k.code == KeyCode::Char('q') {
+                        cont = false;
+                    }
+                }
+                None => (),
+            }
+        }
+
+        self.current_menu = CurrentMenu::Main;
+
+        return Ok(());
+    }
+
+    /// This runs a prompt for a file name and returns a suitable file name. It's currently unused but could be in future developments.
+    #[allow(dead_code)]
+    fn prompt_file_name(&mut self) -> Result<Option<String>, VisualiserError> {
+        let mut file_name = String::new();
+        let mut error_message = None;
+        let mut force_redraw = true;
+        let mut cancel = false;
+        let mut save = false;
+
+        while !cancel && !save {
+            self.ui
+                .render_file_name_prompt(&file_name, &error_message, force_redraw)?;
+            force_redraw = false;
+
+            let input = self.blocking_read_key()?;
+            match input {
+                Some(k) => {
+                    if k.code == KeyCode::Esc {
+                        cancel = true;
+                    } else if let KeyCode::Char(ch) = k.code {
+                        if file_name.len() < 100 {
+                            file_name.push(ch);
+                        }
+                    } else if k.code == KeyCode::Backspace {
+                        file_name.pop();
+                    } else if k.code == KeyCode::Enter {
+                        if file_name.len() > 100 {
+                            error_message = Some("File name is too long".to_string());
+                        } else {
+                            let mut ok = true;
+
+                            for ref ch in file_name.chars() {
+                                if FORBIDDEN_CHARACTERS.contains(ch) {
+                                    error_message = Some(format!("Forbidden character '{}'", ch));
+                                    ok = false;
+                                }
+                            }
+
+                            save = ok;
+                        }
+                    }
+                }
+                None => (),
+            }
+        }
+
+        if cancel {
+            return Ok(None);
+        } else if save {
+            return Ok(Some(file_name));
+        } else {
+            return Err(VisualiserError::new_internal(
+                "Unexpected invalid option. Couldn't cancel or save.",
+            ));
+        }
     }
 
     fn blocking_read_key(&mut self) -> Result<Option<KeyEvent>, VisualiserError> {

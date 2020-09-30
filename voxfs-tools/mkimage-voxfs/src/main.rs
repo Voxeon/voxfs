@@ -32,7 +32,7 @@ fn main() {
     };
 
     let size_str = match arguments.value_of("size") {
-        Some(p) => p.to_string(),
+        Some(p) => p,
         None => {
             eprintln!("A size is required.");
             exit(1);

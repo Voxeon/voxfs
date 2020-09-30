@@ -3,7 +3,7 @@ use crate::Checksum;
 use alloc::string::String;
 use alloc::{vec, vec::Vec};
 use byteorder::{ByteOrder, LittleEndian};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeZone, Utc};
 
 const MAX_INODE_NAME_LENGTH: usize = 125;
 const INODE_EXTENT_COUNT: usize = 5;
@@ -156,7 +156,7 @@ impl INode {
         return res;
     }
 
-    pub const fn size() -> u64 {
+    pub(crate) const fn size() -> u64 {
         return 256;
     }
 
@@ -172,7 +172,7 @@ impl INode {
         return self.name[..first_null_byte].iter().collect();
     }
 
-    pub fn indirect_pointer(&self) -> Option<u64> {
+    pub(crate) fn indirect_pointer(&self) -> Option<u64> {
         if self.indirect_block == 0 {
             return None;
         } else {
@@ -180,7 +180,7 @@ impl INode {
         }
     }
 
-    pub fn set_indirect_pointer(&mut self, new: Option<u64>) {
+    pub(crate) fn set_indirect_pointer(&mut self, new: Option<u64>) {
         match new {
             Some(n) => self.indirect_block = n,
             None => self.indirect_block = 0,
@@ -197,12 +197,24 @@ impl INode {
         return self.size;
     }
 
-    pub fn increase_file_size(&mut self, amount: u64) {
+    pub fn access_time(&self) -> DateTime<Utc> {
+        return Utc.timestamp_nanos(self.access_time as i64);
+    }
+
+    pub fn modified_time(&self) -> DateTime<Utc> {
+        return Utc.timestamp_nanos(self.modified_time as i64);
+    }
+
+    pub fn creation_time(&self) -> DateTime<Utc> {
+        return Utc.timestamp_nanos(self.creation_time as i64);
+    }
+
+    pub(crate) fn increase_file_size(&mut self, amount: u64) {
         self.size += amount;
         self.set_checksum();
     }
 
-    pub fn append_extent(&mut self, extent: Extent) -> bool {
+    pub(crate) fn append_extent(&mut self, extent: Extent) -> bool {
         if self.num_extents >= INODE_EXTENT_COUNT as u8 {
             return false;
         }
@@ -216,17 +228,17 @@ impl INode {
     }
 
     #[inline]
-    pub fn blocks(&self) -> [Extent; INODE_EXTENT_COUNT] {
+    pub(crate) fn blocks(&self) -> [Extent; INODE_EXTENT_COUNT] {
         return self.blocks;
     }
 
     #[inline]
-    pub fn num_extents(&self) -> u8 {
+    pub(crate) fn num_extents(&self) -> u8 {
         return self.num_extents;
     }
 
     #[inline]
-    pub const fn max_extents() -> u8 {
+    pub(crate) const fn max_extents() -> u8 {
         return INODE_EXTENT_COUNT as u8;
     }
 }

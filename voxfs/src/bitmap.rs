@@ -178,7 +178,7 @@ impl BitMap {
         return sum;
     }
 
-    /// Count the number of zeroes up to an index but not including said index. Useful for when a size that is not a multiple of 64 is needed.
+    /// Count the number of zeroes up to an index but not including said index. Useful for when a size that is not a multiple of 64 is needed. Returns none if the index was greater than the length.
     pub fn count_zeros_up_to(&self, index: usize) -> Option<usize> {
         if index >= self.len() {
             return None;

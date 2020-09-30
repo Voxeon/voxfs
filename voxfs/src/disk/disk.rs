@@ -4,10 +4,14 @@ use crate::bitmap::BitMap;
 use crate::disk::disk_blocks::{
     Extent, INode, INodeFlags, IndirectINode, IndirectTagBlock, TagBlock, TagFlags,
 };
-use crate::{ByteSerializable, OSManager, VoxFSError, VoxFSErrorConvertible};
+use crate::{ByteSerializable, OSManager, VoxFSError, VoxFSErrorConvertible, DiskInfo};
 use alloc::{vec, vec::Vec};
 
 const DEFAULT_BLOCK_SIZE: u64 = 4_096; // In bytes. 4KiB.
+pub const FORBIDDEN_CHARACTERS: [char; 21] = [
+    '#', '<', '$', '+', '%', '>', '!', '`', '&', '*', '\'', '|', '{', '}', '?', '"', '=', '/', ':',
+    '\\', '@',
+];
 
 pub struct FileSize {
     pub physical_size: u64,
@@ -237,6 +241,8 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         name: &str,
         flags: TagFlags,
     ) -> Result<TagBlock, VoxFSError<E>> {
+        self.validate_name(name, VoxFSError::InvalidTagName)?;
+
         // store_tag_first_free will set the index
         let tag = TagBlock::new(
             0,
@@ -327,6 +333,46 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
     /// List the inodes on the disk, this method doesn't reload them.
     pub fn list_inodes(&self) -> Vec<INode> {
         return self.inodes.clone();
+    }
+
+    /// The number of tags on this disk
+    pub fn number_of_tags(&self) -> usize {
+        return self.tags.len();
+    }
+
+    /// The number of spaces available for new tags
+    pub fn free_tag_slots(&self) -> usize {
+        return self.tag_bitmap.count_zeros_up_to(self.super_block.tag_count() as usize).unwrap_or(0);
+    }
+
+    /// The number of files on this disk.
+    pub fn number_of_files(&self) -> usize {
+        return self.inodes.len();
+    }
+
+    /// The number of spaces available for new files
+    pub fn free_file_slots(&self) -> usize {
+        return self.inode_bitmap.count_zeros_up_to(self.super_block.inode_count() as usize).unwrap_or(0);
+    }
+
+    /// The size of the disk blocks
+    pub fn block_size(&self) -> u64 {
+        return self.block_size;
+    }
+
+    /// The number of free blocks
+    pub fn free_block_count(&self) -> usize {
+        return self.block_bitmap.count_zeros_up_to(self.super_block.block_count() as usize).unwrap_or(0);
+    }
+
+    /// The amount of free data block space
+    pub fn free_block_space(&self) -> u64 {
+        return (self.free_block_count() as u64) * self.block_size;
+    }
+
+    /// Returns the disk info
+    pub fn disk_info(&self) -> DiskInfo {
+        return DiskInfo::from_disk(self);
     }
 
     /// Add an inode to a tag
@@ -751,6 +797,8 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         flags: INodeFlags,
         contents: Vec<u8>,
     ) -> Result<INode, VoxFSError<E>> {
+        self.validate_name(name, VoxFSError::InvalidFileName)?;
+
         // Find a free space to store the inode on the disk
         let inode_index = match self
             .inode_bitmap
@@ -1659,5 +1707,16 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         }
 
         return Err(VoxFSError::CouldNotFindINode);
+    }
+
+    /// Checks if a tag/inode name contains any forbidden characters
+    fn validate_name(&self, name: &str, err: VoxFSError<E>) -> Result<(), VoxFSError<E>> {
+        for ref ch in name.chars() {
+            if FORBIDDEN_CHARACTERS.contains(ch) {
+                return Err(err);
+            }
+        }
+
+        return Ok(());
     }
 }
