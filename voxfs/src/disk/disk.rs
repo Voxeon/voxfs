@@ -4,8 +4,8 @@ use crate::bitmap::BitMap;
 use crate::disk::disk_blocks::{
     Extent, INode, INodeFlags, IndirectINode, IndirectTagBlock, TagBlock, TagFlags,
 };
-use crate::{ByteSerializable, OSManager, VoxFSError, VoxFSErrorConvertible, DiskInfo};
-use alloc::{vec, vec::Vec};
+use crate::{ByteSerializable, DiskInfo, OSManager, VoxFSError, VoxFSErrorConvertible};
+use alloc::{string::String, vec, vec::Vec};
 
 const DEFAULT_BLOCK_SIZE: u64 = 4_096; // In bytes. 4KiB.
 pub const FORBIDDEN_CHARACTERS: [char; 21] = [
@@ -32,6 +32,7 @@ pub struct Disk<'a, 'b, E: VoxFSErrorConvertible> {
 
     blocks_for_tag_map: u64,
     blocks_for_inode_map: u64,
+    #[allow(dead_code)] // This may be needed later but for now it is kept for consistency reasons
     blocks_for_block_map: u64,
 
     // No guarantees are made about the order of the inodes, they may not be in index order.
@@ -342,7 +343,10 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
 
     /// The number of spaces available for new tags
     pub fn free_tag_slots(&self) -> usize {
-        return self.tag_bitmap.count_zeros_up_to(self.super_block.tag_count() as usize).unwrap_or(0);
+        return self
+            .tag_bitmap
+            .count_zeros_up_to(self.super_block.tag_count() as usize)
+            .unwrap_or(0);
     }
 
     /// The number of files on this disk.
@@ -352,7 +356,10 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
 
     /// The number of spaces available for new files
     pub fn free_file_slots(&self) -> usize {
-        return self.inode_bitmap.count_zeros_up_to(self.super_block.inode_count() as usize).unwrap_or(0);
+        return self
+            .inode_bitmap
+            .count_zeros_up_to(self.super_block.inode_count() as usize)
+            .unwrap_or(0);
     }
 
     /// The size of the disk blocks
@@ -362,7 +369,10 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
 
     /// The number of free blocks
     pub fn free_block_count(&self) -> usize {
-        return self.block_bitmap.count_zeros_up_to(self.super_block.block_count() as usize).unwrap_or(0);
+        return self
+            .block_bitmap
+            .count_zeros_up_to(self.super_block.block_count() as usize)
+            .unwrap_or(0);
     }
 
     /// The amount of free data block space
@@ -689,7 +699,7 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
     }
 
     /// List the inodes on the disk, that are members of a tag
-    pub fn list_tag_nodes(&self, tag_index: u64) -> Result<Vec<INode>, VoxFSError<E>> {
+    pub fn list_nodes_with_tag(&self, tag_index: u64) -> Result<Vec<INode>, VoxFSError<E>> {
         let mut tag = None;
 
         // Locate the tag in the memory map
@@ -705,7 +715,11 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
             return Err(VoxFSError::CouldNotFindTag);
         }
 
-        let tag = tag.unwrap();
+        return self.load_nodes_with_tag(&tag.unwrap());
+    }
+
+    /// List the inodes on the disk, that are members of a tag
+    fn load_nodes_with_tag(&self, tag: &TagBlock) -> Result<Vec<INode>, VoxFSError<E>> {
         let mut nodes = Vec::new();
 
         match tag.indirect_pointer() {
@@ -787,6 +801,87 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         }
 
         return Ok(nodes);
+    }
+
+    /// List the inodes on the disk, that are members of the tags
+    pub fn list_nodes_with_tags(&self, tag_indices: Vec<u64>) -> Result<Vec<INode>, VoxFSError<E>> {
+        let mut tags = Vec::new();
+        let mut tag_indices_cp = tag_indices.clone();
+
+        // Locate the tags in the memory map
+        for t in &self.tags {
+            let i = tag_indices_cp.iter().position(|&e| e == t.index());
+            if i.is_some() {
+                tags.push(t);
+                tag_indices_cp.remove(i.unwrap());
+            }
+
+            if tag_indices_cp.is_empty() {
+                break;
+            }
+        }
+
+        // Ensure we found all tags
+        if !tag_indices_cp.is_empty() {
+            return Err(VoxFSError::CouldNotFindTag);
+        }
+
+        let mut nodes = Vec::new();
+
+        for tag in tags {
+            let tag_nodes = self.load_nodes_with_tag(tag)?;
+
+            if nodes.is_empty() {
+                nodes = tag_nodes;
+            } else {
+                let mut n = 0;
+
+                while nodes.len() > 0 && n < nodes.len() {
+                    if !tag_nodes.contains(&nodes[n]) {
+                        nodes.remove(n);
+                    } else {
+                        n += 1;
+                    }
+                }
+            }
+
+            if nodes.is_empty() {
+                return Ok(nodes); // If this is ever reached then no inode was in all the tags so just return
+            }
+        }
+
+        return Ok(nodes);
+    }
+
+    /// Gets the indices of tags based on their names.
+    pub fn tags_with_names(&self, mut names: Vec<String>) -> Result<Vec<u64>, VoxFSError<E>> {
+        if names.len() > self.tags.len() {
+            return Err(VoxFSError::MoreNamesThanTagsProvided);
+        }
+
+        let mut indices = Vec::new();
+
+        for tag in &self.tags {
+            if names.len() == 0 {
+                break;
+            }
+
+            let index = names.iter().position(|i| tag.same_name(&i));
+
+            match index {
+                Some(i) => {
+                    indices.push(tag.index());
+                    names.remove(i);
+                }
+                None => (),
+            }
+        }
+
+        if names.len() > 0 {
+            return Err(VoxFSError::NoTagsWithNames(names));
+        }
+
+        return Ok(indices);
     }
 
     /// Creates a new file in the first available index in the first available INode location.

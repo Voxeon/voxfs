@@ -190,6 +190,37 @@ impl TagBlock {
     pub fn index(&self) -> u64 {
         return self.index;
     }
+
+    pub fn same_name(&self, string: &str) -> bool {
+        if string.len() > self.name.len() {
+            return false;
+        }
+        let string: Vec<char> = string.chars().collect();
+
+        for i in 0..self.name.len() {
+            if self.name[i] == '\0' && i < string.len() {
+                return false;
+            }
+
+            if i >= string.len() && self.name[i] != '\0' {
+                return false;
+            }
+
+            if i == string.len() && self.name[i] == '\0' {
+                break;
+            }
+
+            if self.name[i] != string[i] {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    pub fn name(&self) -> [char; Self::MAX_NAME_LENGTH] {
+        return self.name;
+    }
 }
 
 impl ByteSerializable for TagBlock {

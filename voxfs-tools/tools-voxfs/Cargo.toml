@@ -1,0 +1,43 @@
+[package]
+name = "tools-voxfs"
+version = "0.1.0"
+authors = ["aidos9 <20310468+aidos9@users.noreply.github.com>"]
+edition = "2018"
+autobins = false
+
+[[bin]]
+name = "mkfs-voxfs"
+path = "src/mkfs-voxfs.rs"
+
+[[bin]]
+name = "ls-voxfs"
+path = "src/ls-voxfs.rs"
+
+[[bin]]
+name = "rm-voxfs"
+path = "src/rm-voxfs.rs"
+
+[[bin]]
+name = "add-voxfs"
+path = "src/add-voxfs.rs"
+
+[[bin]]
+name = "read-voxfs"
+path = "src/read-voxfs.rs"
+
+[[bin]]
+name = "ct-voxfs"
+path = "src/ct-voxfs.rs"
+
+[[bin]]
+name = "rt-voxfs"
+path = "src/rt-voxfs.rs"
+
+[[bin]]
+name = "at-voxfs"
+path = "src/at-voxfs.rs"
+
+[dependencies]
+voxfs = { path = "../../voxfs" }
+voxfs-tool-lib = { path = "../voxfs-tool-lib" }
+clap = "2.33"

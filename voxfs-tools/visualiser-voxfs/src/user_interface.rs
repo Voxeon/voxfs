@@ -2,12 +2,10 @@ use crate::error::VisualiserError;
 use std::io;
 use std::io::Stdout;
 use tui::backend::CrosstermBackend;
-use tui::layout::{Constraint, Direction, Layout, Alignment};
+use tui::layout::{Alignment, Constraint, Direction, Layout};
 use tui::style::{Color, Modifier, Style};
 use tui::text::{Span, Spans, Text};
-use tui::widgets::{
-    Block, Borders, List, ListItem, ListState, Paragraph, Row, Table, TableState,
-};
+use tui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Row, Table, TableState};
 use tui::Terminal;
 use voxfs::DiskInfo;
 use voxfs_tool_lib::u64_to_sized_string;
@@ -206,7 +204,11 @@ impl UI {
         return Ok(());
     }
 
-    pub fn render_disk_info(&mut self, disk_info: &DiskInfo, force_redraw: bool) -> Result<(), VisualiserError> {
+    pub fn render_disk_info(
+        &mut self,
+        disk_info: &DiskInfo,
+        force_redraw: bool,
+    ) -> Result<(), VisualiserError> {
         let default_style = self.default_style;
 
         if force_redraw {

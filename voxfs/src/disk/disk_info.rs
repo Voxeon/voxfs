@@ -1,4 +1,4 @@
-use crate::{VoxFSErrorConvertible, Disk};
+use crate::{Disk, VoxFSErrorConvertible};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct DiskInfo {

@@ -1,5 +1,7 @@
 #![no_std]
 
+#[allow(unused_imports)] // We use alloc's 'format!' macro but for some reason it raises a warning about an unused import.
+#[macro_use]
 extern crate alloc;
 
 mod bitmap;

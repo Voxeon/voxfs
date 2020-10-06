@@ -4,8 +4,8 @@
 
 mod disk;
 mod disk_blocks;
-mod disk_info;
 pub mod disk_handler;
+mod disk_info;
 
 pub use disk::{Disk, FileSize, FORBIDDEN_CHARACTERS};
 pub use disk_blocks::{INode, INodeFlags, IndirectINode, IndirectTagBlock, TagBlock, TagFlags};

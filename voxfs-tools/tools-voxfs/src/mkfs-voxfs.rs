@@ -6,7 +6,7 @@ use voxfs::Disk;
 use voxfs_tool_lib::{sized_string_to_u64, Handler, Manager};
 
 fn main() {
-    let arguments = App::new("mkimage-voxfs")
+    let arguments = App::new("mkfs-voxfs")
         .version("0.1.0")
         .about("This program creates an image with a voxfs filesystem")
         .arg(

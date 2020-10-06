@@ -236,7 +236,7 @@ fn test_open_multiple_small_files_tagged() {
 
     let disk = Disk::open_disk(&mut handler, &mut manager).unwrap();
     let tags = disk.list_tags();
-    let inodes = disk.list_tag_nodes(0).unwrap();
+    let inodes = disk.list_nodes_with_tag(0).unwrap();
 
     assert_eq!(tags.len(), 1);
     assert_eq!(inodes.len(), comp_inodes.len());
@@ -282,7 +282,7 @@ fn test_open_multiple_small_files_tag_removed() {
 
     let disk = Disk::open_disk(&mut handler, &mut manager).unwrap();
     let tags = disk.list_tags();
-    let inodes = disk.list_tag_nodes(0).unwrap();
+    let inodes = disk.list_nodes_with_tag(0).unwrap();
 
     assert_eq!(tags.len(), 1);
     assert_eq!(inodes.len(), comp_inodes.len());

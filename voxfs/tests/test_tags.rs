@@ -53,7 +53,7 @@ fn test_tags() {
     disk.apply_tag(0, comp_nodes[1].index()).unwrap();
     disk.apply_tag(0, comp_nodes[2].index()).unwrap();
 
-    assert_eq!(disk.list_tag_nodes(0).unwrap(), comp_nodes);
+    assert_eq!(disk.list_nodes_with_tag(0).unwrap(), comp_nodes);
 }
 
 #[test]
@@ -82,7 +82,7 @@ fn test_tags_12() {
         disk.apply_tag(0, comp_nodes[i].index()).unwrap();
     }
 
-    assert_eq!(disk.list_tag_nodes(0).unwrap(), comp_nodes);
+    assert_eq!(disk.list_nodes_with_tag(0).unwrap(), comp_nodes);
 }
 
 #[test]
@@ -111,7 +111,7 @@ fn test_tags_duplicate() {
         disk.apply_tag(0, comp_nodes[i].index()).unwrap();
     }
 
-    assert_eq!(disk.list_tag_nodes(0).unwrap(), comp_nodes);
+    assert_eq!(disk.list_nodes_with_tag(0).unwrap(), comp_nodes);
 
     assert_eq!(
         disk.apply_tag(0, comp_nodes[0].index()).unwrap_err(),
@@ -145,7 +145,7 @@ fn test_tags_indirect() {
         disk.apply_tag(0, comp_nodes[i].index()).unwrap();
     }
 
-    assert_eq!(disk.list_tag_nodes(0).unwrap(), comp_nodes);
+    assert_eq!(disk.list_nodes_with_tag(0).unwrap(), comp_nodes);
 }
 
 #[test]
@@ -174,7 +174,7 @@ fn test_tags_indirects() {
         disk.apply_tag(0, comp_nodes[i].index()).unwrap();
     }
 
-    assert_eq!(disk.list_tag_nodes(0).unwrap(), comp_nodes);
+    assert_eq!(disk.list_nodes_with_tag(0).unwrap(), comp_nodes);
 }
 
 #[test]
@@ -235,7 +235,10 @@ fn test_custom_tag() {
     disk.apply_tag(custom_tag.index(), comp_nodes[2].index())
         .unwrap();
 
-    assert_eq!(disk.list_tag_nodes(custom_tag.index()).unwrap(), comp_nodes);
+    assert_eq!(
+        disk.list_nodes_with_tag(custom_tag.index()).unwrap(),
+        comp_nodes
+    );
 }
 
 #[test]
@@ -300,7 +303,7 @@ fn test_remove_tag() {
         .unwrap();
 
     assert_eq!(disk.list_tags().len(), 2);
-    let inodes = disk.list_tag_nodes(1).unwrap();
+    let inodes = disk.list_nodes_with_tag(1).unwrap();
     assert_eq!(inodes[0], comp_nodes[1]);
     assert_eq!(inodes[1], comp_nodes[2]);
 }
@@ -343,7 +346,10 @@ fn test_remove_from_indirect_tag() {
     disk.remove_tag_from_inode(custom_tag.index(), comp_nodes.pop().unwrap().index())
         .unwrap();
 
-    assert_eq!(comp_nodes, disk.list_tag_nodes(custom_tag.index()).unwrap());
+    assert_eq!(
+        comp_nodes,
+        disk.list_nodes_with_tag(custom_tag.index()).unwrap()
+    );
 }
 
 #[test]
@@ -388,7 +394,10 @@ fn test_remove_from_large_tag() {
     }
 
     assert_eq!(disk.available_data_blocks(), 350);
-    assert_eq!(comp_nodes, disk.list_tag_nodes(custom_tag.index()).unwrap());
+    assert_eq!(
+        comp_nodes,
+        disk.list_nodes_with_tag(custom_tag.index()).unwrap()
+    );
 }
 
 #[test]
@@ -502,4 +511,183 @@ fn test_delete_large_tag() {
         .unwrap(); // Create a new tag
 
     assert_eq!(custom_tag_2.index(), 1);
+}
+
+#[test]
+fn test_tag_with_names_1() {
+    let mut handler = Handler::new(4096 * 30); // Disk size of 120 KiB
+    let mut manager = Manager::new();
+
+    let mut disk = Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
+
+    let custom_tag = disk
+        .create_new_tag("tag_1", TagFlags::new(true, true))
+        .unwrap();
+
+    assert_eq!(custom_tag.index(), 1);
+
+    let file_contents = "The file contents are testing, 1234, ok so this should be one block!"
+        .as_bytes()
+        .to_vec();
+
+    let mut comp_nodes = Vec::new();
+
+    comp_nodes.push(
+        disk.create_new_file(
+            "test_file",
+            INodeFlags::new(true, true, true, false),
+            file_contents.clone(),
+        )
+        .unwrap(),
+    );
+
+    assert_eq!(
+        disk.tags_with_names(vec!["tag_1".to_string()]).unwrap(),
+        vec![1]
+    );
+}
+
+#[test]
+fn test_tag_with_names_2() {
+    let mut handler = Handler::new(4096 * 30); // Disk size of 120 KiB
+    let mut manager = Manager::new();
+
+    let mut disk = Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
+
+    let custom_tag = disk
+        .create_new_tag("tag_1", TagFlags::new(true, true))
+        .unwrap();
+
+    assert_eq!(custom_tag.index(), 1);
+
+    let file_contents = "The file contents are testing, 1234, ok so this should be one block!"
+        .as_bytes()
+        .to_vec();
+
+    let mut comp_nodes = Vec::new();
+
+    comp_nodes.push(
+        disk.create_new_file(
+            "test_file",
+            INodeFlags::new(true, true, true, false),
+            file_contents.clone(),
+        )
+        .unwrap(),
+    );
+
+    assert_eq!(
+        disk.tags_with_names(vec!["tag_1".to_string(), "root".to_string()])
+            .unwrap(),
+        vec![0, 1]
+    );
+}
+
+#[test]
+fn test_tag_with_names_3() {
+    let mut handler = Handler::new(4096 * 30); // Disk size of 120 KiB
+    let mut manager = Manager::new();
+
+    let mut disk = Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
+
+    for i in 1..10 {
+        disk.create_new_tag(&format!("tag_{}", i), TagFlags::new(true, true))
+            .unwrap();
+    }
+
+    let file_contents = "The file contents are testing, 1234, ok so this should be one block!"
+        .as_bytes()
+        .to_vec();
+
+    let mut comp_nodes = Vec::new();
+
+    comp_nodes.push(
+        disk.create_new_file(
+            "test_file",
+            INodeFlags::new(true, true, true, false),
+            file_contents.clone(),
+        )
+        .unwrap(),
+    );
+
+    assert_eq!(
+        disk.tags_with_names(vec![
+            "tag_5".to_string(),
+            "tag_1".to_string(),
+            "tag_3".to_string()
+        ])
+        .unwrap(),
+        vec![1, 3, 5]
+    );
+}
+
+#[test]
+fn test_tag_with_names_fail() {
+    let mut handler = Handler::new(4096 * 30); // Disk size of 120 KiB
+    let mut manager = Manager::new();
+
+    let mut disk = Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
+
+    for i in 1..10 {
+        disk.create_new_tag(&format!("tag_{}", i), TagFlags::new(true, true))
+            .unwrap();
+    }
+
+    let file_contents = "The file contents are testing, 1234, ok so this should be one block!"
+        .as_bytes()
+        .to_vec();
+
+    let mut comp_nodes = Vec::new();
+
+    comp_nodes.push(
+        disk.create_new_file(
+            "test_file",
+            INodeFlags::new(true, true, true, false),
+            file_contents.clone(),
+        )
+        .unwrap(),
+    );
+
+    assert!(disk
+        .tags_with_names(vec![
+            "tag_x".to_string(),
+            "tag_1".to_string(),
+            "tag_3".to_string()
+        ])
+        .is_err());
+}
+
+#[test]
+fn test_tag_with_names_fail_2() {
+    let mut handler = Handler::new(4096 * 30); // Disk size of 120 KiB
+    let mut manager = Manager::new();
+
+    let mut disk = Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
+
+    for i in 1..10 {
+        disk.create_new_tag(&format!("tag_{}", i), TagFlags::new(true, true))
+            .unwrap();
+    }
+
+    let file_contents = "The file contents are testing, 1234, ok so this should be one block!"
+        .as_bytes()
+        .to_vec();
+
+    let mut comp_nodes = Vec::new();
+
+    comp_nodes.push(
+        disk.create_new_file(
+            "test_file",
+            INodeFlags::new(true, true, true, false),
+            file_contents.clone(),
+        )
+        .unwrap(),
+    );
+
+    assert!(disk
+        .tags_with_names(vec![
+            "tag_2".to_string(),
+            "root0".to_string(),
+            "tag_3".to_string()
+        ])
+        .is_err());
 }

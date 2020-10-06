@@ -161,7 +161,7 @@ fn test_delete_file_tags() {
         .unwrap();
 
     let index = disk.list_inodes()[1].index();
-    assert_eq!(disk.list_tag_nodes(tag_index).unwrap().len(), 3);
+    assert_eq!(disk.list_nodes_with_tag(tag_index).unwrap().len(), 3);
     disk.delete_file(index).unwrap();
-    assert_eq!(disk.list_tag_nodes(tag_index).unwrap().len(), 2);
+    assert_eq!(disk.list_nodes_with_tag(tag_index).unwrap().len(), 2);
 }

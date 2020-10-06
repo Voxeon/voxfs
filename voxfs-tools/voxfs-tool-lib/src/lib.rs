@@ -2,10 +2,10 @@ mod error;
 mod handler;
 mod manager;
 
+use byte_unit::Byte;
 pub use error::MKImageError;
 pub use handler::Handler;
 pub use manager::Manager;
-use byte_unit::Byte;
 
 pub fn sized_string_to_u64(string: &str) -> Option<u64> {
     return match Byte::from_str(string) {
