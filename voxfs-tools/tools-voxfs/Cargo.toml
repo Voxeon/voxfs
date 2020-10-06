@@ -26,16 +26,8 @@ name = "read-voxfs"
 path = "src/read-voxfs.rs"
 
 [[bin]]
-name = "ct-voxfs"
-path = "src/ct-voxfs.rs"
-
-[[bin]]
-name = "rt-voxfs"
-path = "src/rt-voxfs.rs"
-
-[[bin]]
-name = "at-voxfs"
-path = "src/at-voxfs.rs"
+name = "tag-voxfs"
+path = "src/tag-voxfs.rs"
 
 [dependencies]
 voxfs = { path = "../../voxfs" }
