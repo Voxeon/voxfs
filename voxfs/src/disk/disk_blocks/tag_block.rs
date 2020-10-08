@@ -2,6 +2,7 @@ use crate::{ByteSerializable, Checksum};
 use alloc::vec::Vec;
 use byteorder::{ByteOrder, LittleEndian};
 use chrono::{DateTime, Utc};
+use alloc::string::String;
 
 #[derive(Clone, Copy)]
 /// Length of 256 bytes
@@ -133,11 +134,14 @@ impl TagBlock {
             Some(i) => self.set_indirect(i),
             None => self.set_indirect(0),
         }
+
+        self.set_checksum();
     }
 
     /// Sets what the disk index within the bitmap is for this tag
     pub fn set_index(&mut self, index: u64) {
         self.index = index;
+        self.set_checksum();
     }
 
     pub fn number_of_pointers(&self) -> u16 {
@@ -220,6 +224,18 @@ impl TagBlock {
 
     pub fn name(&self) -> [char; Self::MAX_NAME_LENGTH] {
         return self.name;
+    }
+
+    pub fn name_string(&self) -> String {
+        let mut first_null_byte = self.name.len();
+        for (i, ch) in self.name.iter().enumerate() {
+            if *ch == '\0' {
+                first_null_byte = i;
+                break;
+            }
+        }
+
+        return self.name[..first_null_byte].iter().collect();
     }
 }
 
@@ -421,6 +437,12 @@ impl TagFlags {
         let write = (n >> 6) & 1 == 1;
 
         return Self::new(read, write);
+    }
+}
+
+impl Default for TagFlags {
+    fn default() -> Self {
+        return Self::new(true, true);
     }
 }
 

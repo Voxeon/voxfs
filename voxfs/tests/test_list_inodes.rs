@@ -132,7 +132,7 @@ fn test_list_inodes_with_tags() {
     assert_eq!(custom_tag_1.index(), 1);
 
     let custom_tag_2 = disk
-        .create_new_tag("tag_1", TagFlags::new(true, true))
+        .create_new_tag("tag_2", TagFlags::new(true, true))
         .unwrap();
 
     assert_eq!(custom_tag_2.index(), 2);
@@ -185,7 +185,7 @@ fn test_list_inodes_with_tags_2() {
     assert_eq!(custom_tag_1.index(), 1);
 
     let custom_tag_2 = disk
-        .create_new_tag("tag_1", TagFlags::new(true, true))
+        .create_new_tag("tag_2", TagFlags::new(true, true))
         .unwrap();
 
     assert_eq!(custom_tag_2.index(), 2);

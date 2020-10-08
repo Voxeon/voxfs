@@ -5,7 +5,7 @@ use crate::disk::disk_blocks::{
     Extent, INode, INodeFlags, IndirectINode, IndirectTagBlock, TagBlock, TagFlags,
 };
 use crate::{ByteSerializable, DiskInfo, OSManager, VoxFSError, VoxFSErrorConvertible};
-use alloc::{string::String, vec, vec::Vec};
+use alloc::{string::{String, ToString}, vec, vec::Vec};
 
 const DEFAULT_BLOCK_SIZE: u64 = 4_096; // In bytes. 4KiB.
 pub const FORBIDDEN_CHARACTERS: [char; 21] = [
@@ -243,6 +243,12 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         flags: TagFlags,
     ) -> Result<TagBlock, VoxFSError<E>> {
         self.validate_name(name, VoxFSError::InvalidTagName)?;
+
+        for tag in &self.tags {
+            if tag.same_name(name) {
+                return Err(VoxFSError::TagExistsWithName(name.to_string()));
+            }
+        }
 
         // store_tag_first_free will set the index
         let tag = TagBlock::new(
@@ -1553,9 +1559,11 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         // Set the index in the tag
         tag.set_index(index as u64);
 
+        let addr = self.tag_index_to_address(index as u64);
+
         // Write the tag to the disk
         self.write_to_address(
-            self.tag_index_to_address(index as u64),
+            addr,
             &tag.to_bytes().to_vec(),
         )?;
 

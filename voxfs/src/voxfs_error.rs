@@ -48,6 +48,7 @@ pub enum VoxFSError<E> {
     FailedToSetBitmapBit,
     ExpectedIndirectNode,
     InvalidTagName,
+    TagExistsWithName(String),
     InvalidFileName,
     MoreNamesThanTagsProvided,
     NoTagsWithNames(Vec<String>),
@@ -73,7 +74,8 @@ impl<E: Display> core::fmt::Display for VoxFSError<E> {
                 }
 
                 write!(f, "No tags with names: {}", names_str)
-            }
+            },
+            TagExistsWithName(n) => write!(f, "TagExistsWithName({})", n),
             _ => write!(
                 f,
                 "{}",

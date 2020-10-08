@@ -294,6 +294,30 @@ fn test_open_multiple_small_files_tag_removed() {
 }
 
 #[test]
+fn test_open_multiple_tags() {
+    let mut handler = Handler::new(4096 * 1000); // Disk size of 120 KiB
+    let mut manager = Manager::new();
+
+    let mut disk = Disk::make_new_filesystem(&mut handler, &mut manager).unwrap();
+
+    let mut comp_tags = Vec::new();
+
+    for i in 0..2 {
+        comp_tags.push(
+            disk.create_new_tag(&format!("{}", i), TagFlags::default()).unwrap()
+        );
+    }
+
+    drop(disk);
+
+    let disk = Disk::open_disk(&mut handler, &mut manager).unwrap();
+    let tags = disk.list_tags()[1..].to_vec();
+
+    assert_eq!(tags.len(), comp_tags.len());
+    assert_eq!(tags, comp_tags);
+}
+
+#[test]
 fn test_open_single_large_file_appended() {
     let mut handler = Handler::new(4096 * 30); // Disk size of 120 KiB
     let mut manager = Manager::new();
