@@ -172,6 +172,34 @@ impl INode {
         return self.name[..first_null_byte].iter().collect();
     }
 
+    pub fn same_name(&self, string: &str) -> bool {
+        if string.len() > self.name.len() {
+            return false;
+        }
+
+        let string: Vec<char> = string.chars().collect();
+
+        for i in 0..self.name.len() {
+            if self.name[i] == '\0' && i < string.len() {
+                return false;
+            }
+
+            if i >= string.len() && self.name[i] != '\0' {
+                return false;
+            }
+
+            if i == string.len() && self.name[i] == '\0' {
+                break;
+            }
+
+            if self.name[i] != string[i] {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     pub(crate) fn indirect_pointer(&self) -> Option<u64> {
         if self.indirect_block == 0 {
             return None;

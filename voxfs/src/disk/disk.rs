@@ -859,6 +859,17 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         return Ok(nodes);
     }
 
+    /// Returns the inode index with the file name.
+    pub fn inode_with_name(&self, name: &str) -> Option<u64> {
+        for inode in &self.inodes {
+            if inode.same_name(name) {
+                return Some(inode.index());
+            }
+        }
+
+        return None;
+    }
+
     /// Gets the indices of tags based on their names.
     pub fn tags_with_names(&self, mut names: Vec<String>) -> Result<Vec<u64>, VoxFSError<E>> {
         if names.len() > self.tags.len() {
@@ -888,6 +899,17 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         }
 
         return Ok(indices);
+    }
+
+    /// Gets the index of a tag with a name
+    pub fn tag_with_name(&self, name: &str) -> Option<u64> {
+        for tag in &self.tags {
+            if tag.same_name(name) {
+                return Some(tag.index());
+            }
+        }
+
+        return None;
     }
 
     /// Creates a new file in the first available index in the first available INode location.
@@ -1559,11 +1581,9 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
         // Set the index in the tag
         tag.set_index(index as u64);
 
-        let addr = self.tag_index_to_address(index as u64);
-
         // Write the tag to the disk
         self.write_to_address(
-            addr,
+            self.tag_index_to_address(index as u64),
             &tag.to_bytes().to_vec(),
         )?;
 
