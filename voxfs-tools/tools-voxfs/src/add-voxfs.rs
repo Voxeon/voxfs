@@ -5,8 +5,6 @@ use voxfs::{Disk, INodeFlags};
 use std::path::Path;
 use std::io::{Write, Read};
 use std::fs::File;
-use std::io::{BufRead, BufReader};
-use std::error::Error;
 
 const BUFFER_SIZE: usize = 4000;
 
