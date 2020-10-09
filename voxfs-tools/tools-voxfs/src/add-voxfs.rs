@@ -1,10 +1,10 @@
 use clap::{App, Arg};
-use std::process::exit;
-use voxfs_tool_lib::{Manager, Handler};
-use voxfs::{Disk, INodeFlags};
-use std::path::Path;
-use std::io::{Write, Read};
 use std::fs::File;
+use std::io::{Read, Write};
+use std::path::Path;
+use std::process::exit;
+use voxfs::{Disk, INodeFlags};
+use voxfs_tool_lib::{Handler, Manager};
 
 const BUFFER_SIZE: usize = 4000;
 
@@ -68,26 +68,25 @@ fn main() {
 
     let name = match arguments.value_of("name") {
         Some(n) => n.to_string(),
-        None => {
-            match Path::new(&file_path).file_name() {
-                Some(n) => {
-                    match n.to_str() {
-                        Some(n) => n.to_string(),
-                        None => {
-                            eprintln!("Could not determine a file name to use for the image.");
-                            exit(1);
-                        }
-                    }
-                },
+        None => match Path::new(&file_path).file_name() {
+            Some(n) => match n.to_str() {
+                Some(n) => n.to_string(),
                 None => {
                     eprintln!("Could not determine a file name to use for the image.");
                     exit(1);
                 }
+            },
+            None => {
+                eprintln!("Could not determine a file name to use for the image.");
+                exit(1);
             }
-        }
+        },
     };
 
-    print!("Are you sure you wish to copy \"{}\" into the image as \"{}\": (y/n) ", file_path, name);
+    print!(
+        "Are you sure you wish to copy \"{}\" into the image as \"{}\": (y/n) ",
+        file_path, name
+    );
 
     match std::io::stdout().flush() {
         Ok(_) => (),
@@ -131,13 +130,14 @@ fn main() {
         }
     };
 
-    let file_index = match disk.create_new_file(&name, INodeFlags::default(), buffer[..amount_read].to_vec()) {
-        Ok(i) => i.index(),
-        Err(e) => {
-            eprintln!("Error: {}", e);
-            exit(1);
-        }
-    };
+    let file_index =
+        match disk.create_new_file(&name, INodeFlags::default(), buffer[..amount_read].to_vec()) {
+            Ok(i) => i.index(),
+            Err(e) => {
+                eprintln!("Error: {}", e);
+                exit(1);
+            }
+        };
 
     amount_read = match file.read(&mut buffer) {
         Ok(s) => s,

@@ -1,7 +1,7 @@
 use clap::{App, Arg};
 use std::process::exit;
-use voxfs_tool_lib::{Manager, Handler, MKImageError};
 use voxfs::{Disk, TagFlags};
+use voxfs_tool_lib::{Handler, MKImageError, Manager};
 // Apply, remove, create, delete, tags
 
 const SEPARATOR: &str = "    ";
@@ -24,7 +24,7 @@ fn main() {
                 .max_values(1)
                 .value_name("tag_name")
                 .conflicts_with_all(&["delete", "list", "apply", "remove"])
-                .help("Create a new tag")
+                .help("Create a new tag"),
         )
         .arg(
             Arg::with_name("delete")
@@ -34,14 +34,14 @@ fn main() {
                 .max_values(1)
                 .conflicts_with_all(&["create", "list", "apply", "remove"])
                 .value_name("tag_name")
-                .help("Delete a tag")
+                .help("Delete a tag"),
         )
         .arg(
             Arg::with_name("list")
                 .short("l")
                 .long("list")
                 .conflicts_with_all(&["create", "delete", "apply", "remove"])
-                .help("List all tags")
+                .help("List all tags"),
         )
         .arg(
             Arg::with_name("apply")
@@ -51,7 +51,7 @@ fn main() {
                 .value_names(&["tag_name", "file_name"])
                 .max_values(2)
                 .conflicts_with_all(&["create", "delete", "list", "remove"])
-                .help("Apply tag to file")
+                .help("Apply tag to file"),
         )
         .arg(
             Arg::with_name("remove")
@@ -61,7 +61,7 @@ fn main() {
                 .value_names(&["tag_name", "file_name"])
                 .max_values(2)
                 .conflicts_with_all(&["create", "delete", "list", "apply"])
-                .help("Remove a tag from a file")
+                .help("Remove a tag from a file"),
         )
         .get_matches();
 
@@ -93,7 +93,7 @@ fn main() {
     if arguments.is_present("list") {
         list_tags(disk);
         return;
-    }else if arguments.is_present("create") {
+    } else if arguments.is_present("create") {
         let tag_name = match arguments.value_of("create") {
             Some(n) => n,
             None => {
@@ -121,12 +121,15 @@ fn main() {
                 let vals: Vec<&str> = vals.collect();
 
                 if vals.len() != 2 {
-                    eprintln!("Expected only 2 values instead {} were provided", vals.len());
+                    eprintln!(
+                        "Expected only 2 values instead {} were provided",
+                        vals.len()
+                    );
                     exit(1);
                 }
 
                 (vals[0], vals[1])
-            },
+            }
             None => {
                 eprintln!("Error: A tag and file name is required to apply a tag.");
                 exit(1);
@@ -158,7 +161,7 @@ fn create_new_tag(mut disk: Disk<MKImageError>, tag_name: &str) {
     match disk.create_new_tag(tag_name, TagFlags::default()) {
         Ok(t) => {
             println!("Created new tag with name: \"{}\"", t.name_string());
-        },
+        }
         Err(e) => {
             eprintln!("Error: {}", e);
             exit(1);
@@ -178,7 +181,7 @@ fn delete_tag(mut disk: Disk<MKImageError>, tag_name: &str) {
     match disk.delete_tag(tag_index) {
         Ok(_) => {
             println!("Successfully deleted the tag \"{}\"", tag_name);
-        },
+        }
         Err(e) => {
             eprintln!("Error whilst deleting tag: {}", e);
             exit(1);

@@ -1,7 +1,7 @@
 use clap::{App, Arg};
 use std::process::exit;
-use voxfs_tool_lib::{Manager, Handler};
 use voxfs::Disk;
+use voxfs_tool_lib::{Handler, Manager};
 
 const SEPARATOR: &str = "  ";
 
@@ -26,14 +26,14 @@ fn main() {
                 .short("r")
                 .long("raw")
                 .takes_value(false)
-                .help("Print raw hex contents.")
+                .help("Print raw hex contents."),
         )
         .arg(
             Arg::with_name("hide_header")
                 .long("hide-header")
                 .takes_value(false)
                 .requires("raw")
-                .help("Hide the header when printing raw contents.")
+                .help("Hide the header when printing raw contents."),
         )
         .arg(
             Arg::with_name("no_formatting")
@@ -41,7 +41,7 @@ fn main() {
                 .takes_value(false)
                 .requires("raw")
                 .requires("hide_header")
-                .help("Disable any formatting of raw output.")
+                .help("Disable any formatting of raw output."),
         )
         .get_matches();
 
@@ -105,7 +105,7 @@ fn main() {
 
         if !arguments.is_present("no_formatting") {
             for i in 0..contents.len() {
-                if (i+1) % 0xf == 0 {
+                if (i + 1) % 0xf == 0 {
                     println!("{:x}", contents[i]);
                 } else {
                     print!("{:02x}{}", contents[i], SEPARATOR);

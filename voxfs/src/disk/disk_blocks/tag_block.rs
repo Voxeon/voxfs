@@ -1,8 +1,8 @@
 use crate::{ByteSerializable, Checksum};
+use alloc::string::String;
 use alloc::vec::Vec;
 use byteorder::{ByteOrder, LittleEndian};
 use chrono::{DateTime, Utc};
-use alloc::string::String;
 
 #[derive(Clone, Copy)]
 /// Length of 256 bytes

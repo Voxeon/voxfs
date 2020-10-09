@@ -5,7 +5,11 @@ use crate::disk::disk_blocks::{
     Extent, INode, INodeFlags, IndirectINode, IndirectTagBlock, TagBlock, TagFlags,
 };
 use crate::{ByteSerializable, DiskInfo, OSManager, VoxFSError, VoxFSErrorConvertible};
-use alloc::{string::{String, ToString}, vec, vec::Vec};
+use alloc::{
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
 
 const DEFAULT_BLOCK_SIZE: u64 = 4_096; // In bytes. 4KiB.
 pub const FORBIDDEN_CHARACTERS: [char; 21] = [

@@ -304,7 +304,8 @@ fn test_open_multiple_tags() {
 
     for i in 0..2 {
         comp_tags.push(
-            disk.create_new_tag(&format!("{}", i), TagFlags::default()).unwrap()
+            disk.create_new_tag(&format!("{}", i), TagFlags::default())
+                .unwrap(),
         );
     }
 
