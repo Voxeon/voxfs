@@ -557,7 +557,7 @@ fn test_open_single_file_deleted() {
 
     let index = disk
         .create_new_file(
-            "test_file",
+            "test_file_2",
             INodeFlags::new(true, true, true, false),
             file_contents.clone(),
         )

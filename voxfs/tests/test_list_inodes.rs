@@ -42,7 +42,7 @@ fn test_list_all_inodes() {
 
     comp_nodes.push(
         disk.create_new_file(
-            "test_file",
+            "test_file_3",
             INodeFlags::new(true, true, true, false),
             file_contents_2.clone(),
         )
@@ -67,10 +67,10 @@ fn test_list_all_inodes_30() {
 
     let mut comp_nodes = Vec::new();
 
-    for _ in 0..30 {
+    for i in 0..30 {
         comp_nodes.push(
             disk.create_new_file(
-                "test_file",
+                &format!("test_file_{}", i),
                 INodeFlags::new(true, true, true, false),
                 file_contents.clone(),
             )
@@ -96,10 +96,10 @@ fn test_list_all_inodes_300() {
 
     let mut comp_nodes = Vec::new();
 
-    for _ in 0..300 {
+    for i in 0..300 {
         comp_nodes.push(
             disk.create_new_file(
-                "test_file",
+                &format!("test_file_{}", i),
                 INodeFlags::new(true, true, true, false),
                 file_contents.clone(),
             )
@@ -137,10 +137,10 @@ fn test_list_inodes_with_tags() {
 
     assert_eq!(custom_tag_2.index(), 2);
 
-    for _ in 0..300 {
+    for i in 0..300 {
         comp_nodes.push(
             disk.create_new_file(
-                "test_file",
+                &format!("test_file_{}", i),
                 INodeFlags::new(true, true, true, false),
                 file_contents.clone(),
             )
@@ -190,10 +190,10 @@ fn test_list_inodes_with_tags_2() {
 
     assert_eq!(custom_tag_2.index(), 2);
 
-    for _ in 0..300 {
+    for i in 0..300 {
         comp_nodes.push(
             disk.create_new_file(
-                "test_file",
+                &format!("test_file_{}", i),
                 INodeFlags::new(true, true, true, false),
                 file_contents.clone(),
             )

@@ -50,6 +50,7 @@ pub enum VoxFSError<E> {
     InvalidTagName,
     TagExistsWithName(String),
     InvalidFileName,
+    FileExistsWithName(String),
     MoreNamesThanTagsProvided,
     NoTagsWithNames(Vec<String>),
     DiskError(E),
@@ -75,6 +76,7 @@ impl<E: Display> core::fmt::Display for VoxFSError<E> {
 
                 write!(f, "No tags with names: {}", names_str)
             },
+            FileExistsWithName(n) => write!(f, "FileExistsWithName({})", n),
             TagExistsWithName(n) => write!(f, "TagExistsWithName({})", n),
             _ => write!(
                 f,

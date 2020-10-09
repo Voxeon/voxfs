@@ -922,6 +922,11 @@ impl<'a, 'b, E: VoxFSErrorConvertible> Disk<'a, 'b, E> {
     ) -> Result<INode, VoxFSError<E>> {
         self.validate_name(name, VoxFSError::InvalidFileName)?;
 
+        // Check if a file already exists with this name.
+        if self.inode_with_name(name).is_some() {
+            return Err(VoxFSError::FileExistsWithName(name.to_string()));
+        }
+
         // Find a free space to store the inode on the disk
         let inode_index = match self
             .inode_bitmap

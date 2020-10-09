@@ -42,7 +42,7 @@ fn test_tags() {
 
     comp_nodes.push(
         disk.create_new_file(
-            "test_file",
+            "test_file_3",
             INodeFlags::new(true, true, true, false),
             file_contents_2.clone(),
         )
@@ -72,7 +72,7 @@ fn test_tags_12() {
     for i in 0..12 {
         comp_nodes.push(
             disk.create_new_file(
-                "test_file",
+                &format!("test_file_{}", i),
                 INodeFlags::new(true, true, true, false),
                 file_contents.clone(),
             )
@@ -101,7 +101,7 @@ fn test_tags_duplicate() {
     for i in 0..11 {
         comp_nodes.push(
             disk.create_new_file(
-                "test_file",
+                &format!("test_file_{}", i),
                 INodeFlags::new(true, true, true, false),
                 file_contents.clone(),
             )
@@ -135,7 +135,7 @@ fn test_tags_indirect() {
     for i in 0..21 {
         comp_nodes.push(
             disk.create_new_file(
-                "test_file",
+                &format!("test_file_{}", i),
                 INodeFlags::new(true, true, true, false),
                 file_contents.clone(),
             )
@@ -164,7 +164,7 @@ fn test_tags_indirects() {
     for i in 0..730 {
         comp_nodes.push(
             disk.create_new_file(
-                "test_file",
+                &format!("test_file_{}", i),
                 INodeFlags::new(true, true, true, false),
                 file_contents.clone(),
             )
@@ -221,7 +221,7 @@ fn test_custom_tag() {
 
     comp_nodes.push(
         disk.create_new_file(
-            "test_file",
+            "test_file_3",
             INodeFlags::new(true, true, true, false),
             file_contents_2.clone(),
         )
@@ -285,7 +285,7 @@ fn test_remove_tag() {
 
     comp_nodes.push(
         disk.create_new_file(
-            "test_file",
+            "test_file_3",
             INodeFlags::new(true, true, true, false),
             file_contents_2.clone(),
         )
@@ -330,7 +330,7 @@ fn test_remove_from_indirect_tag() {
     for i in 0..13 {
         comp_nodes.push(
             disk.create_new_file(
-                "test_file",
+                &format!("test_file_{}", i),
                 INodeFlags::new(true, true, true, false),
                 file_contents.clone(),
             )
@@ -374,7 +374,7 @@ fn test_remove_from_large_tag() {
     for i in 0..523 {
         comp_nodes.push(
             disk.create_new_file(
-                "test_file",
+                &format!("test_file_{}", i),
                 INodeFlags::new(true, true, true, false),
                 file_contents.clone(),
             )
@@ -444,7 +444,7 @@ fn test_delete_tag() {
 
     comp_nodes.push(
         disk.create_new_file(
-            "test_file",
+            "test_file_3",
             INodeFlags::new(true, true, true, false),
             file_contents_2.clone(),
         )
@@ -491,7 +491,7 @@ fn test_delete_large_tag() {
     for i in 0..30 {
         comp_nodes.push(
             disk.create_new_file(
-                "test_file",
+                &format!("test_file_{}", i),
                 INodeFlags::new(true, true, true, false),
                 file_contents.clone(),
             )
@@ -507,7 +507,7 @@ fn test_delete_large_tag() {
     assert_eq!(disk.list_tags().len(), 1);
 
     let custom_tag_2 = disk
-        .create_new_tag("file_2", TagFlags::new(true, true))
+        .create_new_tag("tag_2", TagFlags::new(true, true))
         .unwrap(); // Create a new tag
 
     assert_eq!(custom_tag_2.index(), 1);
