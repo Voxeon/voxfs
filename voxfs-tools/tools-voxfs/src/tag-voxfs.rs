@@ -2,7 +2,6 @@ use clap::{App, Arg};
 use std::process::exit;
 use voxfs::{Disk, TagFlags};
 use voxfs_tool_lib::{Handler, MKImageError, Manager};
-// Apply, remove, create, delete, tags
 
 const SEPARATOR: &str = "    ";
 
@@ -138,6 +137,29 @@ fn main() {
 
         apply_tag(disk, tag_name, file_name);
         return;
+    } else if arguments.is_present("remove") {
+        let (tag_name, file_name) = match arguments.values_of("remove") {
+            Some(vals) => {
+                let vals: Vec<&str> = vals.collect();
+
+                if vals.len() != 2 {
+                    eprintln!(
+                        "Expected only 2 values instead {} were provided",
+                        vals.len()
+                    );
+                    exit(1);
+                }
+
+                (vals[0], vals[1])
+            }
+            None => {
+                eprintln!("Error: A tag and file name is required to remove a tag.");
+                exit(1);
+            }
+        };
+
+        remove_tag(disk, tag_name, file_name);
+        return;
     }
 }
 
@@ -213,6 +235,35 @@ fn apply_tag(mut disk: Disk<MKImageError>, tag_name: &str, file_name: &str) {
         }
         Err(e) => {
             eprintln!("An error occurred while applying a tag: {}", e);
+            exit(1);
+        }
+    }
+}
+
+fn remove_tag(mut disk: Disk<MKImageError>, tag_name: &str, file_name: &str) {
+    let tag_index = match disk.tag_with_name(tag_name) {
+        Some(t) => t,
+        None => {
+            eprintln!("No tag with name: \"{}\" found.", tag_name);
+            exit(1);
+        }
+    };
+
+    let file_index = match disk.inode_with_name(file_name) {
+        Some(t) => t,
+        None => {
+            eprintln!("No file with name: \"{}\" found.", file_name);
+            exit(1);
+        }
+    };
+
+    match disk.remove_tag_from_inode(tag_index, file_index) {
+        Ok(_) => {
+            println!("Removed tag \"{}\" from \"{}\"", tag_name, file_name);
+            return;
+        }
+        Err(e) => {
+            eprintln!("An error occurred while removing the tag: {}", e);
             exit(1);
         }
     }
