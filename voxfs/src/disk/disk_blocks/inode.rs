@@ -12,7 +12,7 @@ const INODE_EXTENT_COUNT: usize = 5;
 #[repr(packed)]
 /// The possible flags for a file.
 pub struct INodeFlags {
-    /// valid, a bit that if set indicates that this points to a valid file. Otherwise it is safe to override.
+    /// Legacy. TODO: Remove
     valid: bool,
     read: bool,
     write: bool,
@@ -111,6 +111,12 @@ impl INodeFlags {
         }
 
         return res;
+    }
+}
+
+impl Default for INodeFlags {
+    fn default() -> Self {
+        return Self::new(true, true, true, false);
     }
 }
 

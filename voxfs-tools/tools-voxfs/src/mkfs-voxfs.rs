@@ -71,6 +71,9 @@ fn main() {
 
     // strip the new line character
     input = input.strip_suffix("\n").unwrap_or("").to_string();
+    if input.ends_with('\r') {
+        input = input.strip_suffix("\r").unwrap_or("").to_string();
+    }
 
     if input != "y" && input != "Y" {
         println!("Did not create image.");
@@ -100,6 +103,9 @@ fn main() {
 
         // strip the new line character
         input = input.strip_suffix("\n").unwrap_or("").to_string();
+        if input.ends_with('\r') {
+            input = input.strip_suffix("\r").unwrap_or("").to_string();
+        }
 
         if input != "y" && input != "Y" {
             println!("Did not create image.");

@@ -4,10 +4,12 @@ use voxfs_tool_lib::{Manager, Handler, MKImageError};
 use voxfs::{Disk, TagFlags};
 // Apply, remove, create, delete, tags
 
+const SEPARATOR: &str = "    ";
+
 fn main() {
-    let arguments = App::new("ls-voxfs")
+    let arguments = App::new("tag-voxfs")
         .version("0.1.0")
-        .about("This program lists files in a voxfs image.")
+        .about("This program manages tags in a voxfs image.")
         .arg(
             Arg::with_name("image")
                 .required(true)
@@ -137,8 +139,18 @@ fn main() {
 }
 
 fn list_tags(disk: Disk<MKImageError>) {
-    for tag in disk.list_tags() {
-        println!("{}", tag.name_string());
+    let tags = disk.list_tags();
+
+    if tags.len() == 0 {
+        println!("No tags on this disk!");
+    }
+
+    for i in 0..tags.len() {
+        if (i + 1) % 3 != 0 {
+            print!("{}{}", tags[i].name_string(), SEPARATOR);
+        } else {
+            println!("{}", tags[i].name_string());
+        }
     }
 }
 
